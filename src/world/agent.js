@@ -25,4 +25,27 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
+Agent.prototype.getMenu = function(id) {
+	switch (id) {
+	case undefined:
+		return {
+			action: { label: '<strong>A</strong>ction', hotkey: 'a' },
+			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+		};
+	case 'action':
+		return {
+			go: { label: '<strong>G</strong>o', hotkey: 'g' },
+			todo1: { label: '<strong>T</strong>odo1', hotkey: 't' },
+			todo2: { label: 'T<strong>o</strong>do2', hotkey: 'o' }
+		};
+	case 'create':
+		return {
+			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
+			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
+			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+		};
+	}
+	return null;
+};
+
 module.exports = Agent;

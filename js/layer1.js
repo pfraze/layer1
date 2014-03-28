@@ -351,9 +351,39 @@ module.exports = CameraControls;
 },{}],2:[function(require,module,exports){
 module.exports = {
 	Camera: require('./camera'),
+	Menu: require('./menu'),
 	World: require('./world')
 };
-},{"./camera":1,"./world":3}],3:[function(require,module,exports){
+},{"./camera":1,"./menu":3,"./world":4}],3:[function(require,module,exports){
+function MenuControls(menu, domElement) {
+	this.menu = menu;
+	this.domElement = domElement || document.body;
+	this.setup();
+}
+module.exports = MenuControls;
+
+MenuControls.prototype.setup = function() {
+	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
+	document.body.addEventListener('click', this.onClick.bind(this), false);
+};
+
+MenuControls.prototype.onKeyPress = function(e) {
+	var c = String.fromCharCode(e.which || e.keyCode);
+	var id = this.menu.hotkeyToCmdId(c);
+	if (id) {
+		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(id) });
+	}
+};
+
+MenuControls.prototype.onClick = function(e) {
+	if (e.which !== 1) return; // left click only
+	var cmdEl = local.util.findParentNode.byClass(e.target, 'menu-cmd');
+	if (cmdEl && cmdEl.dataset.cmd) {
+		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(cmdEl.dataset.cmd) });
+		e.preventDefault();
+	}
+};
+},{}],4:[function(require,module,exports){
 function WorldControls(world, domElement) {
 	this.world = world;
 	this.domElement = domElement || document.body;
@@ -385,7 +415,7 @@ WorldControls.prototype.onLeftClickNothing = function(e, agentEl) {
 	var agent = this.world.getAgent(agentEl);
 	this.world.select(null);
 };
-},{}],4:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 var world = require('./world');
 var controls = require('./controls');
 
@@ -399,7 +429,7 @@ window.world = world;
 // main state & behaviors
 
 var camera, scene, renderer;
-var cameraControls, worldControls;
+var cameraControls, worldControls, mainMenuControls;
 
 function setup() {
 	// setup camera
@@ -414,7 +444,7 @@ function setup() {
 	renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
-	document.body.appendChild(renderer.domElement);
+	document.getElementById('world').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
@@ -424,6 +454,7 @@ function setup() {
 	cameraControls.noEdgePan = true;
 	// cameraControls.addEventListener( 'change', render );
 	worldControls = new controls.World(world, renderer.domElement);
+	mainMenuControls = new controls.Menu(world.getMainMenu(), renderer.domElement);
 }
 
 function onWindowResize() {
@@ -446,7 +477,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./controls":2,"./world":6}],5:[function(require,module,exports){
+},{"./controls":2,"./world":7}],6:[function(require,module,exports){
 function Agent(opts) {
 	// setup options
 	if (!opts) { opts = {}; }
@@ -474,12 +505,37 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
+Agent.prototype.getMenu = function(id) {
+	switch (id) {
+	case undefined:
+		return {
+			action: { label: '<strong>A</strong>ction', hotkey: 'a' },
+			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+		};
+	case 'action':
+		return {
+			go: { label: '<strong>G</strong>o', hotkey: 'g' },
+			todo1: { label: '<strong>T</strong>odo1', hotkey: 't' },
+			todo2: { label: 'T<strong>o</strong>do2', hotkey: 'o' }
+		};
+	case 'create':
+		return {
+			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
+			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
+			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+		};
+	}
+	return null;
+};
+
 module.exports = Agent;
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var Agent = require('./agent');
+var Menu = require('./menu');
 
 function World() {
 	this.scene = null;
+	this.mainMenu = new Menu(document.getElementById('menu'));
 
 	this.agents = [];
 	this.agentIdMap = {};
@@ -487,9 +543,11 @@ function World() {
 	this.selectedItems = [];
 }
 module.exports = new World();
+World.prototype.getMainMenu = function() { return this.mainMenu; };
 
 World.prototype.setup = function(scene) {
 	this.scene = scene;
+	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
 	this.spawnAgent();
 };
 
@@ -513,9 +571,54 @@ World.prototype.select = function(items) {
 	if (items) {
 		this.selectedItems = (Array.isArray(items)) ? items : [items];
 		this.selectedItems.forEach(function(item) { item.setSelected(true); });
+
+		// set menu
+		this.mainMenu.setCommands(this.selectedItems[0].getMenu()); // :TODO: multiple selections
 	} else {
 		this.selectedItems.length = 0;
+		this.mainMenu.setCommands(null);
 	}
 };
-},{"./agent":5}]},{},[4])
+
+World.prototype.onMenuExecute = function(e) {
+	var item = this.selectedItems[0];
+	if (!item) { throw "Menu execute but no selected item"; }
+	this.mainMenu.setCmds(item.getMenu(e.cmd.id));
+};
+},{"./agent":6,"./menu":8}],8:[function(require,module,exports){
+
+function Menu(el) {
+	this.commands = null;
+	this.el = el;
+}
+Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
+
+Menu.prototype.getCommands = Menu.prototype.getCmds = function() { return this.commands; };
+Menu.prototype.getCommand = Menu.prototype.getCmd = function(id) { return this.commands[id]; };
+
+Menu.prototype.setCommands = Menu.prototype.setCmds = function(commands) {
+	this.commands = commands;
+	for (var id in this.commands) { this.commands[id].id = id; }
+	this.el.innerHTML = this.renderMenu();
+};
+
+Menu.prototype.renderMenu = function() {
+	if (!this.commands) return '';
+	var lis = [];
+	for (var id in this.commands) {
+		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="#">'+this.commands[id].label+'</a></li>');
+	}
+	return '<ul>'+lis.join('')+'</ul>';
+};
+
+Menu.prototype.hotkeyToCmdId = function(c) {
+	for (var id in this.commands) {
+		if (this.commands[id].hotkey == c)
+			return id;
+	}
+	return null;
+};
+
+module.exports = Menu;
+},{}]},{},[5])
 ;

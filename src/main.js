@@ -11,7 +11,7 @@ window.world = world;
 // main state & behaviors
 
 var camera, scene, renderer;
-var cameraControls, worldControls;
+var cameraControls, worldControls, mainMenuControls;
 
 function setup() {
 	// setup camera
@@ -26,7 +26,7 @@ function setup() {
 	renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
-	document.body.appendChild(renderer.domElement);
+	document.getElementById('world').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
@@ -36,6 +36,7 @@ function setup() {
 	cameraControls.noEdgePan = true;
 	// cameraControls.addEventListener( 'change', render );
 	worldControls = new controls.World(world, renderer.domElement);
+	mainMenuControls = new controls.Menu(world.getMainMenu(), renderer.domElement);
 }
 
 function onWindowResize() {
