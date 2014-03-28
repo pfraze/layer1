@@ -1,27 +1,26 @@
-var camera, scene, renderer;
-var cameraControls;
+var world = require('./world');
+var controls = require('./controls');
 
-var worldsphere;
-var objects = [];
-
-init();
+// init
+setup();
 tick();
 
-function init() {
+// expose some globals
+window.world = world;
+
+// main state & behaviors
+
+var camera, scene, renderer;
+var cameraControls, worldControls;
+
+function setup() {
 	// setup camera
 	camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 3000;
 
 	// setup scene
 	scene = new THREE.Scene();
-
-	// :TEST:
-	var el = document.createElement('div');
-	el.className = 'agent';
-	el.innerText = 'Agent 1';
-
-	var object = new THREE.CSS3DObject( el );
-	scene.add( object );
+	world.setup(scene);
 
 	// setup renderer
 	renderer = new THREE.CSS3DRenderer();
@@ -31,11 +30,12 @@ function init() {
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	cameraControls = new (require('./controls').CameraControls)(camera, renderer.domElement);
+	cameraControls = new controls.Camera(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
 	// cameraControls.addEventListener( 'change', render );
+	worldControls = new controls.World(world, renderer.domElement);
 }
 
 function onWindowResize() {

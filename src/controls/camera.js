@@ -346,4 +346,4 @@ var CameraControls = function ( object, domElement ) {
 
 CameraControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 
-module.exports = { CameraControls: CameraControls };
+module.exports = CameraControls;

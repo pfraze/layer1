@@ -347,32 +347,68 @@ var CameraControls = function ( object, domElement ) {
 
 CameraControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 
-module.exports = { CameraControls: CameraControls };
+module.exports = CameraControls;
 },{}],2:[function(require,module,exports){
-var camera, scene, renderer;
-var cameraControls;
+module.exports = {
+	Camera: require('./camera'),
+	World: require('./world')
+};
+},{"./camera":1,"./world":3}],3:[function(require,module,exports){
+function WorldControls(world, domElement) {
+	this.world = world;
+	this.domElement = domElement || document.body;
+	this.setup();
+}
+module.exports = WorldControls;
 
-var worldsphere;
-var objects = [];
+WorldControls.prototype.setup = function() {
+	this.domElement.addEventListener('click', this.onClick.bind(this), false);
+};
 
-init();
+WorldControls.prototype.onClick = function(e) {
+	if (e.which == 1) { // left click
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (agentEl) {
+			this.onLeftClickAgent(e, agentEl);
+		} else {
+			this.onLeftClickNothing(e);
+		}
+	}
+};
+
+WorldControls.prototype.onLeftClickAgent = function(e, agentEl) {
+	var agent = this.world.getAgent(agentEl);
+	this.world.select(agent);
+};
+
+WorldControls.prototype.onLeftClickNothing = function(e, agentEl) {
+	var agent = this.world.getAgent(agentEl);
+	this.world.select(null);
+};
+},{}],4:[function(require,module,exports){
+var world = require('./world');
+var controls = require('./controls');
+
+// init
+setup();
 tick();
 
-function init() {
+// expose some globals
+window.world = world;
+
+// main state & behaviors
+
+var camera, scene, renderer;
+var cameraControls, worldControls;
+
+function setup() {
 	// setup camera
 	camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 3000;
 
 	// setup scene
 	scene = new THREE.Scene();
-
-	// :TEST:
-	var el = document.createElement('div');
-	el.className = 'agent';
-	el.innerText = 'Agent 1';
-
-	var object = new THREE.CSS3DObject( el );
-	scene.add( object );
+	world.setup(scene);
 
 	// setup renderer
 	renderer = new THREE.CSS3DRenderer();
@@ -382,11 +418,12 @@ function init() {
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	cameraControls = new (require('./controls').CameraControls)(camera, renderer.domElement);
+	cameraControls = new controls.Camera(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
 	// cameraControls.addEventListener( 'change', render );
+	worldControls = new controls.World(world, renderer.domElement);
 }
 
 function onWindowResize() {
@@ -409,5 +446,76 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./controls":1}]},{},[2])
+},{"./controls":2,"./world":6}],5:[function(require,module,exports){
+function Agent(opts) {
+	// setup options
+	if (!opts) { opts = {}; }
+	if (!opts.el) {
+		opts.el = document.createElement('div');
+		opts.el.className = 'agent';
+		opts.el.innerHTML = '<div style="background:red">test</div>';
+	}
+
+	// parent
+	THREE.CSS3DObject.call(this, opts.el);
+	this.element.id = 'object-'+this.id;
+
+	// initial state
+	this.isSelected = false;
+}
+Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
+
+Agent.prototype.setSelected = function(v) {
+	this.isSelected = v;
+	if (v) {
+		this.element.classList.add('selected');
+	} else {
+		this.element.classList.remove('selected');
+	}
+};
+
+module.exports = Agent;
+},{}],6:[function(require,module,exports){
+var Agent = require('./agent');
+
+function World() {
+	this.scene = null;
+
+	this.agents = [];
+	this.agentIdMap = {};
+
+	this.selectedItems = [];
+}
+module.exports = new World();
+
+World.prototype.setup = function(scene) {
+	this.scene = scene;
+	this.spawnAgent();
+};
+
+World.prototype.getAgent = function(idOrEl) {
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
+	return this.agentIdMap[id];
+};
+
+World.prototype.spawnAgent = function(opts) {
+	var agent = new Agent(opts);
+	this.agentIdMap[agent.id] = agent;
+	this.scene.add(agent);
+	return agent;
+};
+
+World.prototype.select = function(items) {
+	// clear current selection
+	this.selectedItems.forEach(function(item) { item.setSelected(false); });
+
+	// set new selection
+	if (items) {
+		this.selectedItems = (Array.isArray(items)) ? items : [items];
+		this.selectedItems.forEach(function(item) { item.setSelected(true); });
+	} else {
+		this.selectedItems.length = 0;
+	}
+};
+},{"./agent":5}]},{},[4])
 ;
