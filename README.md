@@ -46,6 +46,38 @@ Agents move at different speeds depending on their type. This is to help the use
  - Secondary manipulation command (teleport): double-right-click
  - Default interaction command (contextual): right-click
 
+### Command-flow: menu docs and command forms
+
+Agents host addressable menu documents which drive the command flow. The menudocs either define a submenu (continuing the menu flow) or a command form.
+
+Submenus are ordered lists which contain
+
+ - name
+ - label
+ - hotkey
+
+The menudoc is initially fetched from an endpoint which the agent links to. Submenus have their names added as subpaths. For instance, selecting `actions` from `/menu` fetches the next menudoc from `/menu/actions`.
+
+Command forms contain
+
+ - request method
+ - ordered list of form items, each of which have
+   - type (text, date, position, direction, agent)
+   - name
+   - label
+
+Command form items are auto-stepped through by Layer1, prompting the user to provide each item. Once all are fulfilled, the command is submitted to the agent as a request with the given method and a json document of the form values. The agent then chooses how to interpret the event, by some combination of updating internal state and sending subsequent requests. The response is interpretted as part of the command-flow: any non-success is interpretted to show an error or reprompt for an input.
+
+Command-form item types and special options:
+
+ - text (inputted in an overlay control)
+  - rows (default 1)
+ - position (selected on map, sent as {x:,y:})
+ - direction (selected with radial tool, sent as {x:,y:})
+ - region (dragged on map, sent as {from:{x:,y:},to:{x:,y:}})
+ - agent (selected on map, sent as a URL)
+ - agents (selected on map, sent as an array of URLs)
+
 ### Audio signals
 
 [timbre.js](http://mohayonao.github.io/timbre.js/) will be used to generate tones and chords in realtime. Agent and environment state will be reflected in the audio layer using melodic intervals and chord shapes. For instance, normal function is a major chord, while an error condition might be indicated with a diminished7. Types of state will be differentiated by tone shape and pitch-range (eg low bassy grunge for a system component, high thin tones for a helper component).

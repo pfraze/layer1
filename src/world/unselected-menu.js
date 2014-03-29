@@ -1,14 +1,18 @@
-module.exports = function(id) {
-	switch (id) {
-	case undefined:
+module.exports = function(path) {
+	switch (path) {
+	case '/':
 		return {
-			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+			submenu: [
+				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+			]
 		};
-	case 'create':
+	case '/create':
 		return {
-			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
-			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
-			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+			submenu: [
+				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
+				{ name: 'group', label: '(G)roup', hotkey: 'g' },
+				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+			]
 		};
 	}
 	return null;

@@ -1,6 +1,6 @@
 var Agent = require('./agent');
 var Menu = require('./menu');
-var getUnselectedMenuCmds = require('./unselected-menu');
+var getDefaultMenudoc = require('./unselected-menu');
 
 var WORLD_SIZE = 5000;
 
@@ -20,7 +20,8 @@ World.prototype.getMainMenu = function() { return this.mainMenu; };
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
-	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
+	this.mainMenu.addEventListener('select', this.onMenuSelect.bind(this));
+	this.mainMenu.addEventListener('unselect', this.onMenuUnselect.bind(this));
 	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
 	this.onMenuReset();
 
@@ -64,20 +65,27 @@ World.prototype.select = function(items) {
 	this.onMenuReset();
 };
 
-World.prototype.onMenuExecute = function(e) {
-	var item = this.selectedItems[0];
-	var getMenuCmds = (item) ? item.getMenuCmds.bind(item) : getUnselectedMenuCmds;
-	this.mainMenuCursor.push(e.cmd.id);
-	this.mainMenu.setCmds(getMenuCmds(e.cmd.id));
-	console.debug('main menu cursor', this.mainMenuCursor);
+World.prototype.onMenuSelect = function(e) {
+	this.mainMenuCursor.push(e.item);
+	this.recreateMenu();
+};
+
+World.prototype.onMenuUnselect = function(e) {
+	this.mainMenuCursor.pop();
+	this.recreateMenu();
 };
 
 World.prototype.onMenuReset = function(e) {
 	this.mainMenuCursor.length = 0;
+	this.recreateMenu();
+};
+
+World.prototype.recreateMenu = function() {
+	// get menudoc endpoint
 	var item = this.selectedItems[0];
-	if (!item) {
-		this.mainMenu.setCmds(getUnselectedMenuCmds());
-	} else {
-		this.mainMenu.setCmds(this.selectedItems[0].getMenuCmds()); // :TODO: multiple selections
-	}
+	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
+	var path = '/' + this.mainMenuCursor.join('/');
+
+	// fetch menudoc and update menu
+	this.mainMenu.set(getMenuDoc(path));
 };

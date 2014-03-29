@@ -373,23 +373,23 @@ MenuControls.prototype.setup = function() {
 
 MenuControls.prototype.onKeyDown = function(e) {
 	if (e.keyCode == 27) { // escape, must be handled in keydown (not supported in keypress in all browsers)
-		this.menu.dispatchEvent({ type: 'reset' }); // clear
+		this.menu.dispatchEvent({ type: 'unselect' }); // go back
 	}
 };
 
 MenuControls.prototype.onKeyPress = function(e) {
 	var c = String.fromCharCode(e.which||e.keyCode);
-	var id = this.menu.hotkeyToCmdId(c);
+	var id = this.menu.hotkeyToItemName(c);
 	if (id) {
-		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(id) });
+		this.menu.dispatchEvent({ type: 'select', item: id });
 	}
 };
 
 MenuControls.prototype.onClick = function(e) {
 	if (e.which !== 1) return; // left click only
-	var cmdEl = local.util.findParentNode.byClass(e.target, 'menu-cmd');
-	if (cmdEl && cmdEl.dataset.cmd) {
-		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(cmdEl.dataset.cmd) });
+	var itemEl = local.util.findParentNode.byClass(e.target, 'menu-item');
+	if (itemEl && itemEl.attributes.getNamedItem('name')) {
+		this.menu.dispatchEvent({ type: 'select', item: itemEl.attributes.getNamedItem('name').value });
 		e.preventDefault();
 	}
 };
@@ -516,23 +516,34 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-Agent.prototype.getMenuCmds = function(id) {
-	switch (id) {
-	case undefined:
+// :TEMP: this will eventually be replaced with HTTP
+Agent.prototype.getMenuDoc = function(path) {
+	switch (path) {
+	case '/':
 		return {
-			action: { label: '<strong>A</strong>ction', hotkey: 'a' },
-			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+			submenu: [
+				{ name: 'action', label: '(A)ction', hotkey: 'a' },
+				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+			]
 		};
-	case 'action':
+	case '/action':
 		return {
-			go: { label: '<strong>G</strong>o to', hotkey: 'g' },
-			deploy: { label: '<strong>D</strong>eploy', hotkey: 'd' }
+			submenu: [
+				{ name: 'go', label: '(G)o to', hotkey: 'g' }
+			]
 		};
-	case 'create':
+	case '/action/go':
 		return {
-			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
-			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
-			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+			method: 'MOVE',
+			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
+		};
+	case '/create':
+		return {
+			submenu: [
+				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
+				{ name: 'group', label: '(G)roup', hotkey: 'g' },
+				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+			]
 		};
 	}
 	return null;
@@ -544,50 +555,53 @@ module.exports = require('./world');
 },{"./world":10}],8:[function(require,module,exports){
 
 function Menu(el) {
-	this.commands = null;
+	this.doc = null;
 	this.el = el;
 }
 Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
 
-Menu.prototype.getCommands = Menu.prototype.getCmds = function() { return this.commands; };
-Menu.prototype.getCommand = Menu.prototype.getCmd = function(id) { return this.commands[id]; };
-
-Menu.prototype.setCommands = Menu.prototype.setCmds = function(commands) {
-	this.commands = commands;
-	for (var id in this.commands) { this.commands[id].id = id; }
-	this.el.innerHTML = this.renderMenu();
+Menu.prototype.set = function(doc) {
+	this.doc = doc;
+	this.el.innerHTML = this.render();
 };
 
-Menu.prototype.renderMenu = function() {
-	if (!this.commands) return '';
-	var lis = [];
-	for (var id in this.commands) {
-		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="javascript:void()">'+this.commands[id].label+'</a></li>');
+Menu.prototype.render = function() {
+	if (!this.doc) return '';
+	if (this.doc.submenu) {
+		var lis = [];
+		for (var i=0; i < this.doc.submenu.length; i++) {
+			lis.push('<li><a class="menu-item" name="'+this.doc.submenu[i].name+'" href="javascript:void()">'+this.doc.submenu[i].label+'</a></li>');
+		}
+		return '<ul>'+lis.join('')+'</ul>';
 	}
-	return '<ul>'+lis.join('')+'</ul>';
 };
 
-Menu.prototype.hotkeyToCmdId = function(c) {
-	for (var id in this.commands) {
-		if (this.commands[id].hotkey == c)
-			return id;
+Menu.prototype.hotkeyToItemName = function(c) {
+	if (!this.doc.submenu) return null;
+	for (var i=0; i < this.doc.submenu.length; i++) {
+		if (this.doc.submenu[i].hotkey === c)
+			return this.doc.submenu[i].name;
 	}
 	return null;
 };
 
 module.exports = Menu;
 },{}],9:[function(require,module,exports){
-module.exports = function(id) {
-	switch (id) {
-	case undefined:
+module.exports = function(path) {
+	switch (path) {
+	case '/':
 		return {
-			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+			submenu: [
+				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+			]
 		};
-	case 'create':
+	case '/create':
 		return {
-			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
-			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
-			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+			submenu: [
+				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
+				{ name: 'group', label: '(G)roup', hotkey: 'g' },
+				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+			]
 		};
 	}
 	return null;
@@ -595,7 +609,7 @@ module.exports = function(id) {
 },{}],10:[function(require,module,exports){
 var Agent = require('./agent');
 var Menu = require('./menu');
-var getUnselectedMenuCmds = require('./unselected-menu');
+var getDefaultMenudoc = require('./unselected-menu');
 
 var WORLD_SIZE = 5000;
 
@@ -615,7 +629,8 @@ World.prototype.getMainMenu = function() { return this.mainMenu; };
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
-	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
+	this.mainMenu.addEventListener('select', this.onMenuSelect.bind(this));
+	this.mainMenu.addEventListener('unselect', this.onMenuUnselect.bind(this));
 	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
 	this.onMenuReset();
 
@@ -659,22 +674,29 @@ World.prototype.select = function(items) {
 	this.onMenuReset();
 };
 
-World.prototype.onMenuExecute = function(e) {
-	var item = this.selectedItems[0];
-	var getMenuCmds = (item) ? item.getMenuCmds.bind(item) : getUnselectedMenuCmds;
-	this.mainMenuCursor.push(e.cmd.id);
-	this.mainMenu.setCmds(getMenuCmds(e.cmd.id));
-	console.debug('main menu cursor', this.mainMenuCursor);
+World.prototype.onMenuSelect = function(e) {
+	this.mainMenuCursor.push(e.item);
+	this.recreateMenu();
+};
+
+World.prototype.onMenuUnselect = function(e) {
+	this.mainMenuCursor.pop();
+	this.recreateMenu();
 };
 
 World.prototype.onMenuReset = function(e) {
 	this.mainMenuCursor.length = 0;
+	this.recreateMenu();
+};
+
+World.prototype.recreateMenu = function() {
+	// get menudoc endpoint
 	var item = this.selectedItems[0];
-	if (!item) {
-		this.mainMenu.setCmds(getUnselectedMenuCmds());
-	} else {
-		this.mainMenu.setCmds(this.selectedItems[0].getMenuCmds()); // :TODO: multiple selections
-	}
+	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
+	var path = '/' + this.mainMenuCursor.join('/');
+
+	// fetch menudoc and update menu
+	this.mainMenu.set(getMenuDoc(path));
 };
 },{"./agent":6,"./menu":8,"./unselected-menu":9}]},{},[5])
 ;

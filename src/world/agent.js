@@ -25,23 +25,34 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-Agent.prototype.getMenuCmds = function(id) {
-	switch (id) {
-	case undefined:
+// :TEMP: this will eventually be replaced with HTTP
+Agent.prototype.getMenuDoc = function(path) {
+	switch (path) {
+	case '/':
 		return {
-			action: { label: '<strong>A</strong>ction', hotkey: 'a' },
-			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+			submenu: [
+				{ name: 'action', label: '(A)ction', hotkey: 'a' },
+				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+			]
 		};
-	case 'action':
+	case '/action':
 		return {
-			go: { label: '<strong>G</strong>o to', hotkey: 'g' },
-			deploy: { label: '<strong>D</strong>eploy', hotkey: 'd' }
+			submenu: [
+				{ name: 'go', label: '(G)o to', hotkey: 'g' }
+			]
 		};
-	case 'create':
+	case '/action/go':
 		return {
-			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
-			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
-			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+			method: 'MOVE',
+			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
+		};
+	case '/create':
+		return {
+			submenu: [
+				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
+				{ name: 'group', label: '(G)roup', hotkey: 'g' },
+				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+			]
 		};
 	}
 	return null;
