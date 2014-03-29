@@ -34,7 +34,7 @@ function setup() {
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
-	// cameraControls.addEventListener( 'change', render );
+	cameraControls.addEventListener( 'change', render );
 	worldControls = new controls.World(world, renderer.domElement);
 	mainMenuControls = new controls.Menu(world.getMainMenu(), renderer.domElement);
 }

@@ -1,6 +1,8 @@
 var Agent = require('./agent');
 var Menu = require('./menu');
 
+var WORLD_SIZE = 5000;
+
 function World() {
 	this.scene = null;
 	this.mainMenu = new Menu(document.getElementById('menu'));
@@ -15,8 +17,19 @@ World.prototype.getMainMenu = function() { return this.mainMenu; };
 
 World.prototype.setup = function(scene) {
 	this.scene = scene;
+
 	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
 	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
+
+	// create background
+	var gridEl = document.createElement('div');
+	gridEl.id = 'grid-bg';
+	gridEl.style.width = WORLD_SIZE+'px';
+	gridEl.style.height = WORLD_SIZE+'px';
+	this.gridBg = new THREE.CSS3DObject(gridEl);
+	this.gridBg.position.z = -10;
+	this.scene.add(this.gridBg);
+
 	this.spawnAgent();
 };
 
