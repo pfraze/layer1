@@ -426,6 +426,117 @@ WorldControls.prototype.onLeftClickNothing = function(e, agentEl) {
 	this.world.select(null);
 };
 },{}],5:[function(require,module,exports){
+module.exports = {
+	Menu: require('./menu'),
+	World: require('./world')
+};
+},{"./menu":6,"./world":7}],6:[function(require,module,exports){
+
+function Menu(el) {
+	this.doc = null;
+	this.el = el;
+}
+Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
+
+Menu.prototype.set = function(doc) {
+	this.doc = doc;
+	this.el.innerHTML = this.render();
+};
+
+Menu.prototype.render = function() {
+	if (!this.doc) return '';
+	if (this.doc.submenu) {
+		var lis = [];
+		for (var i=0; i < this.doc.submenu.length; i++) {
+			lis.push('<li><a class="menu-item" name="'+this.doc.submenu[i].name+'" href="javascript:void()">'+this.doc.submenu[i].label+'</a></li>');
+		}
+		return '<ul>'+lis.join('')+'</ul>';
+	}
+};
+
+Menu.prototype.hotkeyToItemName = function(c) {
+	if (!this.doc.submenu) return null;
+	for (var i=0; i < this.doc.submenu.length; i++) {
+		if (this.doc.submenu[i].hotkey === c)
+			return this.doc.submenu[i].name;
+	}
+	return null;
+};
+
+module.exports = Menu;
+},{}],7:[function(require,module,exports){
+var Menu = require('./menu');
+var MenuControls = require('../controls').Menu;
+
+function WorldInterface() {
+	this.mainMenu = new Menu(document.getElementById('menu'));
+	this.mainMenuControls = new MenuControls(this.mainMenu);
+	this.mainMenuCursor = [];
+
+	this.selectedWorldItems = null;
+}
+module.exports = WorldInterface;
+WorldInterface.prototype.getMainMenu = function() { return this.mainMenu; };
+
+WorldInterface.prototype.setup = function() {
+	var self = this;
+	this.mainMenu.addEventListener('select', function(e) {
+		self.mainMenuCursor.push(e.item);
+		self.recreateMenu();
+	});
+	this.mainMenu.addEventListener('unselect', function(e) {
+		self.mainMenuCursor.pop();
+		self.recreateMenu();
+	});
+	this.mainMenu.addEventListener('reset', function(e) {
+		self.mainMenuCursor.length = 0;
+		self.recreateMenu();
+	});
+
+	this.recreateMenu();
+	this.mainMenuControls.setup();
+};
+
+// called when the active selection has changed
+WorldInterface.prototype.setWorldSelection = function(items) {
+	this.selectedWorldItems = items;
+
+	// reset menu for new selection
+	this.mainMenuCursor.length = 0;
+	this.recreateMenu();
+};
+
+WorldInterface.prototype.recreateMenu = function() {
+	// get menudoc endpoint
+	var item = (this.selectedWorldItems) ? this.selectedWorldItems[0] : null;
+	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
+	var path = '/' + this.mainMenuCursor.join('/');
+
+	// fetch menudoc and update menu
+	this.mainMenu.set(getMenuDoc(path));
+};
+
+// :TEMP:
+function getDefaultMenudoc(path) {
+	switch (path) {
+	case '/':
+		return {
+			submenu: [
+				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+			]
+		};
+	case '/create':
+		return {
+			submenu: [
+				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
+				{ name: 'group', label: '(G)roup', hotkey: 'g' },
+				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+			]
+		};
+	}
+	return null;
+};
+},{"../controls":2,"./menu":6}],8:[function(require,module,exports){
 var world = require('./world');
 var controls = require('./controls');
 
@@ -437,9 +548,8 @@ tick();
 window.world = world;
 
 // main state & behaviors
-
 var camera, scene, renderer;
-var cameraControls, worldControls, mainMenuControls;
+var cameraControls;
 
 function setup() {
 	// setup camera
@@ -464,8 +574,6 @@ function setup() {
 	cameraControls.noEdgePan = true;
 	cameraControls.staticMousePan = true;
 	cameraControls.addEventListener( 'change', render );
-	worldControls = new controls.World(world, renderer.domElement);
-	mainMenuControls = new controls.Menu(world.getMainMenu(), renderer.domElement);
 }
 
 function onWindowResize() {
@@ -488,7 +596,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./controls":2,"./world":7}],6:[function(require,module,exports){
+},{"./controls":2,"./world":10}],9:[function(require,module,exports){
 function Agent(opts) {
 	// setup options
 	if (!opts) { opts = {}; }
@@ -550,73 +658,19 @@ Agent.prototype.getMenuDoc = function(path) {
 };
 
 module.exports = Agent;
-},{}],7:[function(require,module,exports){
-module.exports = require('./world');
-},{"./world":10}],8:[function(require,module,exports){
-
-function Menu(el) {
-	this.doc = null;
-	this.el = el;
-}
-Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
-
-Menu.prototype.set = function(doc) {
-	this.doc = doc;
-	this.el.innerHTML = this.render();
-};
-
-Menu.prototype.render = function() {
-	if (!this.doc) return '';
-	if (this.doc.submenu) {
-		var lis = [];
-		for (var i=0; i < this.doc.submenu.length; i++) {
-			lis.push('<li><a class="menu-item" name="'+this.doc.submenu[i].name+'" href="javascript:void()">'+this.doc.submenu[i].label+'</a></li>');
-		}
-		return '<ul>'+lis.join('')+'</ul>';
-	}
-};
-
-Menu.prototype.hotkeyToItemName = function(c) {
-	if (!this.doc.submenu) return null;
-	for (var i=0; i < this.doc.submenu.length; i++) {
-		if (this.doc.submenu[i].hotkey === c)
-			return this.doc.submenu[i].name;
-	}
-	return null;
-};
-
-module.exports = Menu;
-},{}],9:[function(require,module,exports){
-module.exports = function(path) {
-	switch (path) {
-	case '/':
-		return {
-			submenu: [
-				{ name: 'create', label: '(C)reate', hotkey: 'c' },
-			]
-		};
-	case '/create':
-		return {
-			submenu: [
-				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
-				{ name: 'group', label: '(G)roup', hotkey: 'g' },
-				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
-			]
-		};
-	}
-	return null;
-};
 },{}],10:[function(require,module,exports){
+module.exports = require('./world');
+},{"./world":11}],11:[function(require,module,exports){
 var Agent = require('./agent');
-var Menu = require('./menu');
-var getDefaultMenudoc = require('./unselected-menu');
+var WorldInterface = require('../iface').World;
+var WorldControls = require('../controls').World;
 
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
-	this.mainMenu = new Menu(document.getElementById('menu'));
-	this.mainMenuCursor = [];
+	this.iface = new WorldInterface();
+	this.controls = new WorldControls(this);
 
 	this.agents = [];
 	this.agentIdMap = {};
@@ -624,15 +678,9 @@ function World() {
 	this.selectedItems = [];
 }
 module.exports = new World();
-World.prototype.getMainMenu = function() { return this.mainMenu; };
 
 World.prototype.setup = function(scene) {
 	this.scene = scene;
-
-	this.mainMenu.addEventListener('select', this.onMenuSelect.bind(this));
-	this.mainMenu.addEventListener('unselect', this.onMenuUnselect.bind(this));
-	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
-	this.onMenuReset();
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -643,6 +691,11 @@ World.prototype.setup = function(scene) {
 	this.gridBg.position.z = -10;
 	this.scene.add(this.gridBg);
 
+	// setup subcomponents
+	this.iface.setup();
+	this.controls.setup();
+
+	// :DEBUG: spawn an agent
 	this.spawnAgent();
 };
 
@@ -670,33 +723,8 @@ World.prototype.select = function(items) {
 		this.selectedItems.length = 0;
 	}
 
-	// set menu
-	this.onMenuReset();
+	// update interface
+	this.iface.setWorldSelection(this.selectedItems);
 };
-
-World.prototype.onMenuSelect = function(e) {
-	this.mainMenuCursor.push(e.item);
-	this.recreateMenu();
-};
-
-World.prototype.onMenuUnselect = function(e) {
-	this.mainMenuCursor.pop();
-	this.recreateMenu();
-};
-
-World.prototype.onMenuReset = function(e) {
-	this.mainMenuCursor.length = 0;
-	this.recreateMenu();
-};
-
-World.prototype.recreateMenu = function() {
-	// get menudoc endpoint
-	var item = this.selectedItems[0];
-	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
-	var path = '/' + this.mainMenuCursor.join('/');
-
-	// fetch menudoc and update menu
-	this.mainMenu.set(getMenuDoc(path));
-};
-},{"./agent":6,"./menu":8,"./unselected-menu":9}]},{},[5])
+},{"../controls":2,"../iface":5,"./agent":9}]},{},[8])
 ;

@@ -107,11 +107,27 @@ The behaviors and available command-set are determined by the agent type.
 
 Conceptually, agents are similar to cursors in a text buffer. They represent a position in a state-space, and pass commands on to the maintainer of that state in order to produce effects. In editors, a text-cursor passes the keystrokes as commands. In Layer1, the commands are chosen from menus, hotkeys, and contextual clicks, and are carried with HTTP messages.
 
+### Agent services
+
+An agent's behaviors are defined by a service. The service is sent a ALLOC request with the agent's construction data and expected to respond with the location of the new agent. The ALLOC request is left open for the lifecycle of the agent; when closed, the agent should be destroyed and its memory freed. (A broken link is a "network exception," and should result in a deallocation.)
+
+When commands are run on agents, they are handled by sending a request to the agent resource. The agent enacts the command with subsequent requests, for instance asking the world entities service to change its icon or reposition it.
+
+### Base-agent proxy
+
+All agents are contacted through a proxy that lives in Layer1 called the "Base-agent Proxy." It provides a basic set of behaviors which can not be overridden. For new or custom behaviors, it passes the request up-stream to the agent's service.
+
+If no agent is selected, the base-agent proxy is used without an upstream. Its fixed behaviors include:
+
+ - MOVE
+ - SPAWN
+ -
+
 ### Spawning agents
 
-Agents are spawned from links possessed by other agents (their indexes). This is done by scanning the index and selecting a link which is then used to generate the new agent. Immediately on creation, the agent sends a HEAD request for its own index.
+Agents are spawned from links possessed by other agents (their indexes). This is done by scanning the index and selecting a link which is then used to generate the new agent. The selected link is passed in the ALLOC request. Immediately on creation, the agent sends a HEAD request for its own index.
 
-The agent exists in a "pre-constructed" state until the initial HEAD response arrives. In that state, the link used for creation acts as its index, but with minimal authority (as the link is not canonical). The waiting period for the response is its "construction" period.
+The agent exists in a "pre-constructed" state until the initial HEAD response arrives. In that state, agent cannot accept commands. The waiting period for the response is its "construction" period. When ready, the agent sends the response headers to the ALLOC request.
 
 The Layer1 client maintains a set of index queries for its known agent types. The matches against an agent's index are used to populate the menu of spawnable agents.
 
@@ -119,14 +135,7 @@ Agents may be spawned from another agent's "self" link, which is called "cloning
 
 ### Agent types
 
-Every agent has a type which is selected at creation. Agents are polymorphic, meaning they can change between active types after creation. However, types do not combine - only one may apply at a time.
-
-Each type has a definition document which is readable by the Layer1 client. They include:
-
- - Index queries for spawning agents of the type
- - Any non-standard commands
- - Rendering behaviors
- - Interaction/reaction behaviors
+Every agent has a type which is selected at creation and which maps to the agent's ALLOC endpoint. Agents are polymorphic, meaning they can change between active types after creation. However, types do not combine - only one may apply at a time.
 
 ### Agent command-sets
 

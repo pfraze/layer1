@@ -1,13 +1,13 @@
 var Agent = require('./agent');
-var Menu = require('./menu');
-var getDefaultMenudoc = require('./unselected-menu');
+var WorldInterface = require('../iface').World;
+var WorldControls = require('../controls').World;
 
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
-	this.mainMenu = new Menu(document.getElementById('menu'));
-	this.mainMenuCursor = [];
+	this.iface = new WorldInterface();
+	this.controls = new WorldControls(this);
 
 	this.agents = [];
 	this.agentIdMap = {};
@@ -15,15 +15,9 @@ function World() {
 	this.selectedItems = [];
 }
 module.exports = new World();
-World.prototype.getMainMenu = function() { return this.mainMenu; };
 
 World.prototype.setup = function(scene) {
 	this.scene = scene;
-
-	this.mainMenu.addEventListener('select', this.onMenuSelect.bind(this));
-	this.mainMenu.addEventListener('unselect', this.onMenuUnselect.bind(this));
-	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
-	this.onMenuReset();
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -34,6 +28,11 @@ World.prototype.setup = function(scene) {
 	this.gridBg.position.z = -10;
 	this.scene.add(this.gridBg);
 
+	// setup subcomponents
+	this.iface.setup();
+	this.controls.setup();
+
+	// :DEBUG: spawn an agent
 	this.spawnAgent();
 };
 
@@ -61,31 +60,6 @@ World.prototype.select = function(items) {
 		this.selectedItems.length = 0;
 	}
 
-	// set menu
-	this.onMenuReset();
-};
-
-World.prototype.onMenuSelect = function(e) {
-	this.mainMenuCursor.push(e.item);
-	this.recreateMenu();
-};
-
-World.prototype.onMenuUnselect = function(e) {
-	this.mainMenuCursor.pop();
-	this.recreateMenu();
-};
-
-World.prototype.onMenuReset = function(e) {
-	this.mainMenuCursor.length = 0;
-	this.recreateMenu();
-};
-
-World.prototype.recreateMenu = function() {
-	// get menudoc endpoint
-	var item = this.selectedItems[0];
-	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
-	var path = '/' + this.mainMenuCursor.join('/');
-
-	// fetch menudoc and update menu
-	this.mainMenu.set(getMenuDoc(path));
+	// update interface
+	this.iface.setWorldSelection(this.selectedItems);
 };
