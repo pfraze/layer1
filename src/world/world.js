@@ -1,5 +1,6 @@
 var Agent = require('./agent');
 var Menu = require('./menu');
+var getUnselectedMenuCmds = require('./unselected-menu');
 
 var WORLD_SIZE = 5000;
 
@@ -21,6 +22,7 @@ World.prototype.setup = function(scene) {
 
 	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
 	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
+	this.onMenuReset();
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -64,9 +66,9 @@ World.prototype.select = function(items) {
 
 World.prototype.onMenuExecute = function(e) {
 	var item = this.selectedItems[0];
-	if (!item) { throw "Menu execute but no selected item"; }
+	var getMenuCmds = (item) ? item.getMenuCmds.bind(item) : getUnselectedMenuCmds;
 	this.mainMenuCursor.push(e.cmd.id);
-	this.mainMenu.setCmds(item.getMenu(e.cmd.id));
+	this.mainMenu.setCmds(getMenuCmds(e.cmd.id));
 	console.debug('main menu cursor', this.mainMenuCursor);
 };
 
@@ -74,8 +76,8 @@ World.prototype.onMenuReset = function(e) {
 	this.mainMenuCursor.length = 0;
 	var item = this.selectedItems[0];
 	if (!item) {
-		this.mainMenu.setCmds(null);
+		this.mainMenu.setCmds(getUnselectedMenuCmds());
 	} else {
-		this.mainMenu.setCmds(this.selectedItems[0].getMenu()); // :TODO: multiple selections
+		this.mainMenu.setCmds(this.selectedItems[0].getMenuCmds()); // :TODO: multiple selections
 	}
 };

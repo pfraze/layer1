@@ -25,7 +25,7 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-Agent.prototype.getMenu = function(id) {
+Agent.prototype.getMenuCmds = function(id) {
 	switch (id) {
 	case undefined:
 		return {

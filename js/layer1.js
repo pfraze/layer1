@@ -512,7 +512,7 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-Agent.prototype.getMenu = function(id) {
+Agent.prototype.getMenuCmds = function(id) {
 	switch (id) {
 	case undefined:
 		return {
@@ -537,7 +537,7 @@ Agent.prototype.getMenu = function(id) {
 module.exports = Agent;
 },{}],7:[function(require,module,exports){
 module.exports = require('./world');
-},{"./world":9}],8:[function(require,module,exports){
+},{"./world":10}],8:[function(require,module,exports){
 
 function Menu(el) {
 	this.commands = null;
@@ -573,8 +573,25 @@ Menu.prototype.hotkeyToCmdId = function(c) {
 
 module.exports = Menu;
 },{}],9:[function(require,module,exports){
+module.exports = function(id) {
+	switch (id) {
+	case undefined:
+		return {
+			create: { label: '<strong>C</strong>reate', hotkey: 'c' },
+		};
+	case 'create':
+		return {
+			agent: { label: '<strong>A</strong>gent', hotkey: 'a' },
+			group: { label: '<strong>G</strong>roup', hotkey: 'g' },
+			formation: { label: '<strong>F</strong>ormation', hotkey: 'f' }
+		};
+	}
+	return null;
+};
+},{}],10:[function(require,module,exports){
 var Agent = require('./agent');
 var Menu = require('./menu');
+var getUnselectedMenuCmds = require('./unselected-menu');
 
 var WORLD_SIZE = 5000;
 
@@ -596,6 +613,7 @@ World.prototype.setup = function(scene) {
 
 	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
 	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
+	this.onMenuReset();
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -639,9 +657,9 @@ World.prototype.select = function(items) {
 
 World.prototype.onMenuExecute = function(e) {
 	var item = this.selectedItems[0];
-	if (!item) { throw "Menu execute but no selected item"; }
+	var getMenuCmds = (item) ? item.getMenuCmds.bind(item) : getUnselectedMenuCmds;
 	this.mainMenuCursor.push(e.cmd.id);
-	this.mainMenu.setCmds(item.getMenu(e.cmd.id));
+	this.mainMenu.setCmds(getMenuCmds(e.cmd.id));
 	console.debug('main menu cursor', this.mainMenuCursor);
 };
 
@@ -649,10 +667,10 @@ World.prototype.onMenuReset = function(e) {
 	this.mainMenuCursor.length = 0;
 	var item = this.selectedItems[0];
 	if (!item) {
-		this.mainMenu.setCmds(null);
+		this.mainMenu.setCmds(getUnselectedMenuCmds());
 	} else {
-		this.mainMenu.setCmds(this.selectedItems[0].getMenu()); // :TODO: multiple selections
+		this.mainMenu.setCmds(this.selectedItems[0].getMenuCmds()); // :TODO: multiple selections
 	}
 };
-},{"./agent":6,"./menu":8}]},{},[5])
+},{"./agent":6,"./menu":8,"./unselected-menu":9}]},{},[5])
 ;
