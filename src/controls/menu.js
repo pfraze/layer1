@@ -6,12 +6,19 @@ function MenuControls(menu, domElement) {
 module.exports = MenuControls;
 
 MenuControls.prototype.setup = function() {
+	document.body.addEventListener('keyup', this.onKeyUp.bind(this), false);
 	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
 	document.body.addEventListener('click', this.onClick.bind(this), false);
 };
 
+MenuControls.prototype.onKeyUp = function(e) {
+	if (e.keyCode == 27) { // escape, must be handled in keyup (not supported in keypress in all browsers)
+		this.menu.dispatchEvent({ type: 'reset' }); // clear
+	}
+};
+
 MenuControls.prototype.onKeyPress = function(e) {
-	var c = String.fromCharCode(e.which || e.keyCode);
+	var c = String.fromCharCode(e.which||e.keyCode);
 	var id = this.menu.hotkeyToCmdId(c);
 	if (id) {
 		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(id) });

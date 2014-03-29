@@ -34,9 +34,8 @@ Agent.prototype.getMenu = function(id) {
 		};
 	case 'action':
 		return {
-			go: { label: '<strong>G</strong>o', hotkey: 'g' },
-			todo1: { label: '<strong>T</strong>odo1', hotkey: 't' },
-			todo2: { label: 'T<strong>o</strong>do2', hotkey: 'o' }
+			go: { label: '<strong>G</strong>o to', hotkey: 'g' },
+			deploy: { label: '<strong>D</strong>eploy', hotkey: 'd' }
 		};
 	case 'create':
 		return {

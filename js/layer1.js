@@ -363,12 +363,19 @@ function MenuControls(menu, domElement) {
 module.exports = MenuControls;
 
 MenuControls.prototype.setup = function() {
+	document.body.addEventListener('keyup', this.onKeyUp.bind(this), false);
 	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
 	document.body.addEventListener('click', this.onClick.bind(this), false);
 };
 
+MenuControls.prototype.onKeyUp = function(e) {
+	if (e.keyCode == 27) { // escape, must be handled in keyup (not supported in keypress in all browsers)
+		this.menu.dispatchEvent({ type: 'reset' }); // clear
+	}
+};
+
 MenuControls.prototype.onKeyPress = function(e) {
-	var c = String.fromCharCode(e.which || e.keyCode);
+	var c = String.fromCharCode(e.which||e.keyCode);
 	var id = this.menu.hotkeyToCmdId(c);
 	if (id) {
 		this.menu.dispatchEvent({ type: 'execute', cmd: this.menu.getCmd(id) });
@@ -514,9 +521,8 @@ Agent.prototype.getMenu = function(id) {
 		};
 	case 'action':
 		return {
-			go: { label: '<strong>G</strong>o', hotkey: 'g' },
-			todo1: { label: '<strong>T</strong>odo1', hotkey: 't' },
-			todo2: { label: 'T<strong>o</strong>do2', hotkey: 'o' }
+			go: { label: '<strong>G</strong>o to', hotkey: 'g' },
+			deploy: { label: '<strong>D</strong>eploy', hotkey: 'd' }
 		};
 	case 'create':
 		return {
@@ -530,62 +536,8 @@ Agent.prototype.getMenu = function(id) {
 
 module.exports = Agent;
 },{}],7:[function(require,module,exports){
-var Agent = require('./agent');
-var Menu = require('./menu');
-
-function World() {
-	this.scene = null;
-	this.mainMenu = new Menu(document.getElementById('menu'));
-
-	this.agents = [];
-	this.agentIdMap = {};
-
-	this.selectedItems = [];
-}
-module.exports = new World();
-World.prototype.getMainMenu = function() { return this.mainMenu; };
-
-World.prototype.setup = function(scene) {
-	this.scene = scene;
-	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
-	this.spawnAgent();
-};
-
-World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
-	return this.agentIdMap[id];
-};
-
-World.prototype.spawnAgent = function(opts) {
-	var agent = new Agent(opts);
-	this.agentIdMap[agent.id] = agent;
-	this.scene.add(agent);
-	return agent;
-};
-
-World.prototype.select = function(items) {
-	// clear current selection
-	this.selectedItems.forEach(function(item) { item.setSelected(false); });
-
-	// set new selection
-	if (items) {
-		this.selectedItems = (Array.isArray(items)) ? items : [items];
-		this.selectedItems.forEach(function(item) { item.setSelected(true); });
-
-		// set menu
-		this.mainMenu.setCommands(this.selectedItems[0].getMenu()); // :TODO: multiple selections
-	} else {
-		this.selectedItems.length = 0;
-		this.mainMenu.setCommands(null);
-	}
-};
-
-World.prototype.onMenuExecute = function(e) {
-	var item = this.selectedItems[0];
-	if (!item) { throw "Menu execute but no selected item"; }
-	this.mainMenu.setCmds(item.getMenu(e.cmd.id));
-};
-},{"./agent":6,"./menu":8}],8:[function(require,module,exports){
+module.exports = require('./world');
+},{"./world":9}],8:[function(require,module,exports){
 
 function Menu(el) {
 	this.commands = null;
@@ -620,5 +572,70 @@ Menu.prototype.hotkeyToCmdId = function(c) {
 };
 
 module.exports = Menu;
-},{}]},{},[5])
+},{}],9:[function(require,module,exports){
+var Agent = require('./agent');
+var Menu = require('./menu');
+
+function World() {
+	this.scene = null;
+	this.mainMenu = new Menu(document.getElementById('menu'));
+
+	this.agents = [];
+	this.agentIdMap = {};
+
+	this.selectedItems = [];
+}
+module.exports = new World();
+World.prototype.getMainMenu = function() { return this.mainMenu; };
+
+World.prototype.setup = function(scene) {
+	this.scene = scene;
+	this.mainMenu.addEventListener('execute', this.onMenuExecute.bind(this));
+	this.mainMenu.addEventListener('reset', this.onMenuReset.bind(this));
+	this.spawnAgent();
+};
+
+World.prototype.getAgent = function(idOrEl) {
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
+	return this.agentIdMap[id];
+};
+
+World.prototype.spawnAgent = function(opts) {
+	var agent = new Agent(opts);
+	this.agentIdMap[agent.id] = agent;
+	this.scene.add(agent);
+	return agent;
+};
+
+World.prototype.select = function(items) {
+	// clear current selection
+	this.selectedItems.forEach(function(item) { item.setSelected(false); });
+
+	// set new selection
+	if (items) {
+		this.selectedItems = (Array.isArray(items)) ? items : [items];
+		this.selectedItems.forEach(function(item) { item.setSelected(true); });
+	} else {
+		this.selectedItems.length = 0;
+	}
+
+	// set menu
+	this.onMenuReset();
+};
+
+World.prototype.onMenuExecute = function(e) {
+	var item = this.selectedItems[0];
+	if (!item) { throw "Menu execute but no selected item"; }
+	this.mainMenu.setCmds(item.getMenu(e.cmd.id));
+};
+
+World.prototype.onMenuReset = function(e) {
+	var item = this.selectedItems[0];
+	if (!item) {
+		this.mainMenu.setCmds(null);
+	} else {
+		this.mainMenu.setCmds(this.selectedItems[0].getMenu()); // :TODO: multiple selections
+	}
+};
+},{"./agent":6,"./menu":8}]},{},[5])
 ;
