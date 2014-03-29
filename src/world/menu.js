@@ -18,7 +18,7 @@ Menu.prototype.renderMenu = function() {
 	if (!this.commands) return '';
 	var lis = [];
 	for (var id in this.commands) {
-		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="#">'+this.commands[id].label+'</a></li>');
+		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="javascript:void()">'+this.commands[id].label+'</a></li>');
 	}
 	return '<ul>'+lis.join('')+'</ul>';
 };

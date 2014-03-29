@@ -6,13 +6,13 @@ function MenuControls(menu, domElement) {
 module.exports = MenuControls;
 
 MenuControls.prototype.setup = function() {
-	document.body.addEventListener('keyup', this.onKeyUp.bind(this), false);
+	document.body.addEventListener('keydown', this.onKeyDown.bind(this), false);
 	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
 	document.body.addEventListener('click', this.onClick.bind(this), false);
 };
 
-MenuControls.prototype.onKeyUp = function(e) {
-	if (e.keyCode == 27) { // escape, must be handled in keyup (not supported in keypress in all browsers)
+MenuControls.prototype.onKeyDown = function(e) {
+	if (e.keyCode == 27) { // escape, must be handled in keydown (not supported in keypress in all browsers)
 		this.menu.dispatchEvent({ type: 'reset' }); // clear
 	}
 };

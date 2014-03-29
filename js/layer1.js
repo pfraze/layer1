@@ -20,19 +20,21 @@ var CameraControls = function ( object, domElement ) {
 	this.screen = { left: 0, top: 0, width: 0, height: 0 };
 
 	this.zoomSpeed = 1.2;
-	this.panSpeed = 0.5;
+	this.panEdgesThreshold = 0.05;
+	this.panSpeedMouse = 1;
+	this.panSpeedKeyboard = 0.025;
 
 	this.noZoom = false;
 	this.noPan = false;
 	this.noEdgePan = false;
 
-	this.staticMoving = false;
+	this.staticMousePan = false;
+	this.staticKeyboardPan = true; // :TODO: support for false
+	this.staticMouseZoom = false;
 	this.dynamicDampingFactor = 0.2;
 
 	this.minDistance = 0;
 	this.maxDistance = Infinity;
-
-	this.panThreshold = 0.05;
 
 	var KEY_LEFT = 37;
 	var KEY_UP = 38;
@@ -112,7 +114,7 @@ var CameraControls = function ( object, domElement ) {
 
 			_eye.multiplyScalar( factor );
 
-			if ( _this.staticMoving ) {
+			if ( _this.staticMouseZoom ) {
 
 				_zoomStart.copy( _zoomEnd );
 
@@ -136,19 +138,20 @@ var CameraControls = function ( object, domElement ) {
 
 			if (_isPanning) {
 				panAmt.copy( _panEnd ).sub( _panStart );
+				panAmt.multiplyScalar( _this.panSpeedMouse );
 			} else {
 				panAmt.copy(_panAmt);
 			}
 
 
-			if (_keysDown[KEY_LEFT])  { panAmt.x -= 0.05; }
-			if (_keysDown[KEY_RIGHT]) { panAmt.x += 0.05; }
-			if (_keysDown[KEY_UP])    { panAmt.y -= 0.05; }
-			if (_keysDown[KEY_DOWN])  { panAmt.y += 0.05; }
+			if (_keysDown[KEY_LEFT])  { panAmt.x += _this.panSpeedKeyboard; }
+			if (_keysDown[KEY_RIGHT]) { panAmt.x -= _this.panSpeedKeyboard; }
+			if (_keysDown[KEY_UP])    { panAmt.y += _this.panSpeedKeyboard; }
+			if (_keysDown[KEY_DOWN])  { panAmt.y -= _this.panSpeedKeyboard; }
 
 			if ( panAmt.lengthSq() ) {
 
-				panAmt.multiplyScalar( _eye.length() * _this.panSpeed );
+				panAmt.multiplyScalar( _eye.length() );
 
 				pan.copy( _eye ).cross( _this.object.up ).setLength( panAmt.x );
 				pan.add( objectUp.copy( _this.object.up ).setLength( panAmt.y ) );
@@ -156,7 +159,7 @@ var CameraControls = function ( object, domElement ) {
 				_this.object.position.add( pan );
 				_this.target.add( pan );
 
-				if ( _this.staticMoving ) {
+				if ( _this.staticMousePan ) {
 
 					_panStart.copy( _panEnd );
 
@@ -285,17 +288,17 @@ var CameraControls = function ( object, domElement ) {
 			_panEnd.copy(mousepos);
 		} else if (!_this.noEdgePan) {
 			// pan if at an edge
-			if (mousepos.x <= _this.panThreshold) {
-				_panAmt.x = (mousepos.x - _this.panThreshold);
-			} else if (1 - mousepos.x <= _this.panThreshold) {
-				_panAmt.x = (_this.panThreshold - (1 - mousepos.x));
+			if (mousepos.x <= _this.panEdgesThreshold) {
+				_panAmt.x = (mousepos.x - _this.panEdgesThreshold);
+			} else if (1 - mousepos.x <= _this.panEdgesThreshold) {
+				_panAmt.x = (_this.panEdgesThreshold - (1 - mousepos.x));
 			} else {
 				_panAmt.x = 0;
 			}
-			if (mousepos.y <= _this.panThreshold) {
-				_panAmt.y = (mousepos.y - _this.panThreshold);
-			} else if (1 - mousepos.y <= _this.panThreshold) {
-				_panAmt.y = (_this.panThreshold - (1 - mousepos.y));
+			if (mousepos.y <= _this.panEdgesThreshold) {
+				_panAmt.y = (mousepos.y - _this.panEdgesThreshold);
+			} else if (1 - mousepos.y <= _this.panEdgesThreshold) {
+				_panAmt.y = (_this.panEdgesThreshold - (1 - mousepos.y));
 			} else {
 				_panAmt.y = 0;
 			}
@@ -363,13 +366,13 @@ function MenuControls(menu, domElement) {
 module.exports = MenuControls;
 
 MenuControls.prototype.setup = function() {
-	document.body.addEventListener('keyup', this.onKeyUp.bind(this), false);
+	document.body.addEventListener('keydown', this.onKeyDown.bind(this), false);
 	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
 	document.body.addEventListener('click', this.onClick.bind(this), false);
 };
 
-MenuControls.prototype.onKeyUp = function(e) {
-	if (e.keyCode == 27) { // escape, must be handled in keyup (not supported in keypress in all browsers)
+MenuControls.prototype.onKeyDown = function(e) {
+	if (e.keyCode == 27) { // escape, must be handled in keydown (not supported in keypress in all browsers)
 		this.menu.dispatchEvent({ type: 'reset' }); // clear
 	}
 };
@@ -459,6 +462,7 @@ function setup() {
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
+	cameraControls.staticMousePan = true;
 	cameraControls.addEventListener( 'change', render );
 	worldControls = new controls.World(world, renderer.domElement);
 	mainMenuControls = new controls.Menu(world.getMainMenu(), renderer.domElement);
@@ -558,7 +562,7 @@ Menu.prototype.renderMenu = function() {
 	if (!this.commands) return '';
 	var lis = [];
 	for (var id in this.commands) {
-		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="#">'+this.commands[id].label+'</a></li>');
+		lis.push('<li><a class="menu-cmd" data-cmd="'+id+'" href="javascript:void()">'+this.commands[id].label+'</a></li>');
 	}
 	return '<ul>'+lis.join('')+'</ul>';
 };
