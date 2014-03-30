@@ -88,22 +88,42 @@ var CameraControls = function ( object, domElement ) {
 
 			this.screen = this.domElement.getBoundingClientRect();
 			// adjustments come from similar code in the jquery offset() function
-			var d = this.domElement.ownerDocument.documentElement
-			this.screen.left += window.pageXOffset - d.clientLeft
-			this.screen.top += window.pageYOffset - d.clientTop
+			var d = this.domElement.ownerDocument.documentElement;
+			this.screen.left += window.pageXOffset - d.clientLeft;
+			this.screen.top += window.pageYOffset - d.clientTop;
 
 		}
 
 	};
 
-	this.getMouseOnScreen = function ( pageX, pageY, vector ) {
+	this.getMouseOnScreen = function ( event, vector ) {
 
 		return vector.set(
-			( pageX - _this.screen.left ) / _this.screen.width,
-			( pageY - _this.screen.top ) / _this.screen.height
+			( event.pageX - _this.screen.left ) / _this.screen.width,
+			( event.pageY - _this.screen.top ) / _this.screen.height
 		);
 
 	};
+
+	// given an event, fills the dest vector with the position in the world
+	this.getMouseInWorld = (function() {
+		var projector = new THREE.Projector();
+		return (function(event, destVector) {
+			var vector = new THREE.Vector3(
+				(event.clientX / window.innerWidth) * 2 - 1,
+				-(event.clientY / window.innerHeight) * 2 + 1,
+				0.5
+			);
+
+			projector.unprojectVector( vector, camera );
+			var dir = vector.sub( camera.position ).normalize();
+
+			var distance = - camera.position.z / dir.z;
+
+			destVector.copy(camera.position);
+			destVector.add(dir.multiplyScalar(distance));
+		});
+	})();
 
 	this.zoomCamera = function () {
 
@@ -263,7 +283,7 @@ var CameraControls = function ( object, domElement ) {
 
 	function mousedown(event) {
 		if (event.which == 2) { // middle click
-			_this.getMouseOnScreen(event.pageX, event.pageY, _panStart);
+			_this.getMouseOnScreen(event, _panStart);
 			_panEnd.copy(_panStart);
 			_isPanning = true;
 		}
@@ -280,7 +300,7 @@ var CameraControls = function ( object, domElement ) {
 		if ( _this.enabled === false ) return;
 
 		// get a normalized position
-		_this.getMouseOnScreen( event.pageX, event.pageY, mousepos );
+		_this.getMouseOnScreen( event, mousepos );
 
 		// pan if panning due to mode
 		if (_isPanning) {

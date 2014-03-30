@@ -5,31 +5,27 @@ var controls = require('./controls');
 setup();
 tick();
 
-// expose some globals
+// global state & behaviors
 window.world = world;
-
-// main state & behaviors
-var camera, scene, renderer;
-var cameraControls;
 
 function setup() {
 	// setup camera
-	camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
+	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 3000;
 
 	// setup scene
-	scene = new THREE.Scene();
+	window.scene = new THREE.Scene();
 	world.setup(scene);
 
 	// setup renderer
-	renderer = new THREE.CSS3DRenderer();
+	window.renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
 	document.getElementById('world').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	cameraControls = new controls.Camera(camera, renderer.domElement);
+	window.cameraControls = new controls.Camera(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;

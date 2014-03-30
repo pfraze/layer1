@@ -1,7 +1,9 @@
 var Menu = require('./menu');
 var MenuControls = require('../controls').Menu;
 
-function WorldInterface() {
+function WorldInterface(world) {
+	this.world = world;
+
 	this.mainMenu = new Menu(document.getElementById('menu'));
 	this.mainMenuControls = new MenuControls(this.mainMenu);
 	this.mainMenuCursor = [];
@@ -9,6 +11,7 @@ function WorldInterface() {
 	this.selectedWorldItems = null;
 }
 module.exports = WorldInterface;
+WorldInterface.prototype = Object.create(THREE.EventDispatcher.prototype);
 WorldInterface.prototype.getMainMenu = function() { return this.mainMenu; };
 
 WorldInterface.prototype.setup = function() {
@@ -25,13 +28,14 @@ WorldInterface.prototype.setup = function() {
 		self.mainMenuCursor.length = 0;
 		self.recreateMenu();
 	});
+	this.mainMenu.addEventListener('submit', this.onFormSubmit.bind(this));
 
 	this.recreateMenu();
 	this.mainMenuControls.setup();
 };
 
 // called when the active selection has changed
-WorldInterface.prototype.setWorldSelection = function(items) {
+WorldInterface.prototype.updateWorldSelection = function(items) {
 	this.selectedWorldItems = items;
 
 	// reset menu for new selection
@@ -47,6 +51,11 @@ WorldInterface.prototype.recreateMenu = function() {
 
 	// fetch menudoc and update menu
 	this.mainMenu.set(getMenuDoc(path));
+};
+
+WorldInterface.prototype.onFormSubmit = function(e) {
+	this.world.selectionDispatch(this.mainMenu.doc.method, this.mainMenu.makeFormBody());
+	this.mainMenu.reset();
 };
 
 // :TEMP:

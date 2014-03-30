@@ -6,7 +6,7 @@ var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
-	this.iface = new WorldInterface();
+	this.iface = new WorldInterface(this);
 	this.controls = new WorldControls(this);
 
 	this.agents = [];
@@ -61,5 +61,12 @@ World.prototype.select = function(items) {
 	}
 
 	// update interface
-	this.iface.setWorldSelection(this.selectedItems);
+	this.iface.updateWorldSelection(this.selectedItems);
+};
+
+World.prototype.selectionDispatch = function(method, body) {
+	// :TEMP:
+	if (method == 'MOVE') {
+		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	}
 };

@@ -89,22 +89,42 @@ var CameraControls = function ( object, domElement ) {
 
 			this.screen = this.domElement.getBoundingClientRect();
 			// adjustments come from similar code in the jquery offset() function
-			var d = this.domElement.ownerDocument.documentElement
-			this.screen.left += window.pageXOffset - d.clientLeft
-			this.screen.top += window.pageYOffset - d.clientTop
+			var d = this.domElement.ownerDocument.documentElement;
+			this.screen.left += window.pageXOffset - d.clientLeft;
+			this.screen.top += window.pageYOffset - d.clientTop;
 
 		}
 
 	};
 
-	this.getMouseOnScreen = function ( pageX, pageY, vector ) {
+	this.getMouseOnScreen = function ( event, vector ) {
 
 		return vector.set(
-			( pageX - _this.screen.left ) / _this.screen.width,
-			( pageY - _this.screen.top ) / _this.screen.height
+			( event.pageX - _this.screen.left ) / _this.screen.width,
+			( event.pageY - _this.screen.top ) / _this.screen.height
 		);
 
 	};
+
+	// given an event, fills the dest vector with the position in the world
+	this.getMouseInWorld = (function() {
+		var projector = new THREE.Projector();
+		return (function(event, destVector) {
+			var vector = new THREE.Vector3(
+				(event.clientX / window.innerWidth) * 2 - 1,
+				-(event.clientY / window.innerHeight) * 2 + 1,
+				0.5
+			);
+
+			projector.unprojectVector( vector, camera );
+			var dir = vector.sub( camera.position ).normalize();
+
+			var distance = - camera.position.z / dir.z;
+
+			destVector.copy(camera.position);
+			destVector.add(dir.multiplyScalar(distance));
+		});
+	})();
 
 	this.zoomCamera = function () {
 
@@ -264,7 +284,7 @@ var CameraControls = function ( object, domElement ) {
 
 	function mousedown(event) {
 		if (event.which == 2) { // middle click
-			_this.getMouseOnScreen(event.pageX, event.pageY, _panStart);
+			_this.getMouseOnScreen(event, _panStart);
 			_panEnd.copy(_panStart);
 			_isPanning = true;
 		}
@@ -281,7 +301,7 @@ var CameraControls = function ( object, domElement ) {
 		if ( _this.enabled === false ) return;
 
 		// get a normalized position
-		_this.getMouseOnScreen( event.pageX, event.pageY, mousepos );
+		_this.getMouseOnScreen( event, mousepos );
 
 		// pan if panning due to mode
 		if (_isPanning) {
@@ -361,14 +381,13 @@ module.exports = {
 function MenuControls(menu, domElement) {
 	this.menu = menu;
 	this.domElement = domElement || document.body;
-	this.setup();
 }
 module.exports = MenuControls;
 
 MenuControls.prototype.setup = function() {
 	document.body.addEventListener('keydown', this.onKeyDown.bind(this), false);
 	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
-	document.body.addEventListener('click', this.onClick.bind(this), false);
+	document.body.addEventListener('click', this.onClick.bind(this), true); // on bubble
 };
 
 MenuControls.prototype.onKeyDown = function(e) {
@@ -387,10 +406,24 @@ MenuControls.prototype.onKeyPress = function(e) {
 
 MenuControls.prototype.onClick = function(e) {
 	if (e.which !== 1) return; // left click only
+
+	// menu items
 	var itemEl = local.util.findParentNode.byClass(e.target, 'menu-item');
 	if (itemEl && itemEl.attributes.getNamedItem('name')) {
 		this.menu.dispatchEvent({ type: 'select', item: itemEl.attributes.getNamedItem('name').value });
 		e.preventDefault();
+		e.stopPropagation();
+		return;
+	}
+
+	// awaiting a click
+	var fi = this.menu.getActiveFormItem();
+	if (fi && fi.type == 'position') {
+		var pos = new THREE.Vector3();
+		window.cameraControls.getMouseInWorld(e, pos);
+		this.menu.dispatchEvent({ type: 'input', valueType: 'position', value: pos });
+		e.preventDefault();
+		e.stopPropagation();
 	}
 };
 },{}],4:[function(require,module,exports){
@@ -435,22 +468,88 @@ module.exports = {
 function Menu(el) {
 	this.doc = null;
 	this.el = el;
+
+	this.addEventListener('input', this.onInput.bind(this));
+
+	this.activeFormItem = null;
+	this.formValues = [];
 }
 Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
 
 Menu.prototype.set = function(doc) {
 	this.doc = doc;
+	this.activeFormItem = 0;
+	this.formValues.length = 0;
+
 	this.el.innerHTML = this.render();
 };
 
+Menu.prototype.reset = function() {
+	this.set(null);
+	this.dispatchEvent({ type: 'reset' });
+};
+
+Menu.prototype.getActiveFormItem = function() {
+	if (!this.doc || !this.doc.form || this.activeFormItem === null) { return null; }
+	return this.doc.form[this.activeFormItem];
+};
+Menu.prototype.getFormValues = function() { return this.formValues; };
+
 Menu.prototype.render = function() {
 	if (!this.doc) return '';
+	var html = '', i;
+	if (this.doc.form) {
+		html += '<p>'+(this.doc.method||'POST').toUpperCase()+'</p>';
+		for (i=0; i < this.doc.form.length; i++) {
+			var fi = this.doc.form[i];
+			var a = (i === this.activeFormItem);
+			html += '<div class="form-item form-item-'+fi.type+' '+((a)?'form-item-active':'')+'" type="'+fi.type+'">'+this.renderFormItem(fi, a)+'</div>';
+		}
+	}
 	if (this.doc.submenu) {
 		var lis = [];
-		for (var i=0; i < this.doc.submenu.length; i++) {
+		for (i=0; i < this.doc.submenu.length; i++) {
 			lis.push('<li><a class="menu-item" name="'+this.doc.submenu[i].name+'" href="javascript:void()">'+this.doc.submenu[i].label+'</a></li>');
 		}
-		return '<ul>'+lis.join('')+'</ul>';
+		html += '<ul>'+lis.join('')+'</ul>';
+	}
+	return html;
+};
+
+Menu.prototype.renderFormItem = function(formItem, isActive) {
+	switch (formItem.type) {
+	case 'text':
+		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text">' : '<textarea rows="'+formItem.rows+'"></textarea>';
+		return '<p>'+formItem.label+'<br>'+ctrl+'</p>';
+	case 'position':
+		return '<p>'+formItem.label+' <small>Left-click on the map to choose the position</small></p>';
+	case 'direction':
+		return '<p>'+formItem.label+' <small>Left-click and drag to choose the direction</small></p>';
+	case 'region':
+		return '<p>'+formItem.label+' <small>Left-click and drag to create the region</small></p>';
+	case 'agent':
+		if (formItem.multiple) {
+			return '<p>'+formItem.label+' <small>Left-click on agents on the map</small></p>';
+		}
+		return '<p>'+formItem.label+' <small>Left-click an agent on the map</small></p>';
+	}
+	return '<p>Form item type "'+formItem.type+'" is not valid.</p>';
+};
+
+Menu.prototype.onInput = function(e) {
+	var fi = this.getActiveFormItem();
+	if (fi && fi.type == e.valueType) {
+		// Update form
+		this.formValues[this.activeFormItem] = e.value;
+		this.activeFormItem++;
+
+		// Done? Emit submit
+		if (this.activeFormItem >= this.doc.form.length) {
+			this.dispatchEvent({ type: 'submit', values: this.formValues });
+		}
+	} else {
+		console.error(e, fi);
+		throw "Input event fired, but no active form item (or mismatched)";
 	}
 };
 
@@ -463,12 +562,22 @@ Menu.prototype.hotkeyToItemName = function(c) {
 	return null;
 };
 
+Menu.prototype.makeFormBody = function() {
+	var body = {};
+	for (i=0; i < this.doc.form.length; i++) {
+		body[this.doc.form[i].name] = this.formValues[i];
+	}
+	return body;
+};
+
 module.exports = Menu;
 },{}],7:[function(require,module,exports){
 var Menu = require('./menu');
 var MenuControls = require('../controls').Menu;
 
-function WorldInterface() {
+function WorldInterface(world) {
+	this.world = world;
+
 	this.mainMenu = new Menu(document.getElementById('menu'));
 	this.mainMenuControls = new MenuControls(this.mainMenu);
 	this.mainMenuCursor = [];
@@ -476,6 +585,7 @@ function WorldInterface() {
 	this.selectedWorldItems = null;
 }
 module.exports = WorldInterface;
+WorldInterface.prototype = Object.create(THREE.EventDispatcher.prototype);
 WorldInterface.prototype.getMainMenu = function() { return this.mainMenu; };
 
 WorldInterface.prototype.setup = function() {
@@ -492,13 +602,14 @@ WorldInterface.prototype.setup = function() {
 		self.mainMenuCursor.length = 0;
 		self.recreateMenu();
 	});
+	this.mainMenu.addEventListener('submit', this.onFormSubmit.bind(this));
 
 	this.recreateMenu();
 	this.mainMenuControls.setup();
 };
 
 // called when the active selection has changed
-WorldInterface.prototype.setWorldSelection = function(items) {
+WorldInterface.prototype.updateWorldSelection = function(items) {
 	this.selectedWorldItems = items;
 
 	// reset menu for new selection
@@ -514,6 +625,11 @@ WorldInterface.prototype.recreateMenu = function() {
 
 	// fetch menudoc and update menu
 	this.mainMenu.set(getMenuDoc(path));
+};
+
+WorldInterface.prototype.onFormSubmit = function(e) {
+	this.world.selectionDispatch(this.mainMenu.doc.method, this.mainMenu.makeFormBody());
+	this.mainMenu.reset();
 };
 
 // :TEMP:
@@ -535,7 +651,7 @@ function getDefaultMenudoc(path) {
 		};
 	}
 	return null;
-};
+}
 },{"../controls":2,"./menu":6}],8:[function(require,module,exports){
 var world = require('./world');
 var controls = require('./controls');
@@ -544,31 +660,27 @@ var controls = require('./controls');
 setup();
 tick();
 
-// expose some globals
+// global state & behaviors
 window.world = world;
-
-// main state & behaviors
-var camera, scene, renderer;
-var cameraControls;
 
 function setup() {
 	// setup camera
-	camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
+	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 3000;
 
 	// setup scene
-	scene = new THREE.Scene();
+	window.scene = new THREE.Scene();
 	world.setup(scene);
 
 	// setup renderer
-	renderer = new THREE.CSS3DRenderer();
+	window.renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
 	document.getElementById('world').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	cameraControls = new controls.Camera(camera, renderer.domElement);
+	window.cameraControls = new controls.Camera(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
@@ -669,7 +781,7 @@ var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
-	this.iface = new WorldInterface();
+	this.iface = new WorldInterface(this);
 	this.controls = new WorldControls(this);
 
 	this.agents = [];
@@ -724,7 +836,14 @@ World.prototype.select = function(items) {
 	}
 
 	// update interface
-	this.iface.setWorldSelection(this.selectedItems);
+	this.iface.updateWorldSelection(this.selectedItems);
+};
+
+World.prototype.selectionDispatch = function(method, body) {
+	// :TEMP:
+	if (method == 'MOVE') {
+		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	}
 };
 },{"../controls":2,"../iface":5,"./agent":9}]},{},[8])
 ;

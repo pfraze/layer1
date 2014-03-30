@@ -76,7 +76,7 @@ Command-form item types and special options:
  - direction (selected with radial tool, sent as {x:,y:})
  - region (dragged on map, sent as {from:{x:,y:},to:{x:,y:}})
  - agent (selected on map, sent as a URL)
- - agents (selected on map, sent as an array of URLs)
+  - multiple (default false)
 
 ### Audio signals
 
