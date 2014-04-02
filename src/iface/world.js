@@ -63,18 +63,21 @@ function getDefaultMenudoc(path) {
 	switch (path) {
 	case '/':
 		return {
+			title: 'World',
 			submenu: [
 				{ name: 'spawn', label: '(S)pawn', hotkey: 's' },
 			]
 		};
 	case '/spawn':
 		return {
+			title: 'World',
 			submenu: [
 				{ name: 'service', label: '(S)ervice', hotkey: 's' }
 			]
 		};
 	case '/spawn/service':
 		return {
+			title: 'World',
 			method: 'SPAWN',
 			form: [{ type: 'text', name: 'url', label: 'URL' }, { type: 'hidden', name: 'type', value: 'service' }]
 		};

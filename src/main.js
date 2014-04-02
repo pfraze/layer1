@@ -29,6 +29,7 @@ function setup() {
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
+	cameraControls.noKeyboardPan = true;
 	cameraControls.staticMousePan = true;
 	cameraControls.addEventListener( 'change', render );
 }

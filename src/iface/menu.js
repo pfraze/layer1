@@ -34,6 +34,9 @@ Menu.prototype.getFormValues = function() { return this.formValues; };
 Menu.prototype.render = function() {
 	if (!this.doc) return '';
 	var html = '', i;
+	if (this.doc.title) {
+		html += '<p class="form-title">'+this.doc.title+'</p>';
+	}
 	if (this.doc.form) {
 		html += '<p>'+(this.doc.method||'POST').toUpperCase()+'</p>';
 		for (i=0; i < this.doc.form.length; i++) {

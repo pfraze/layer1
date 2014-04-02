@@ -19,20 +19,17 @@ World.prototype.setup = function(scene) {
 	this.scene = scene;
 
 	// create background
-	var gridEl = document.createElement('div');
-	gridEl.id = 'grid-bg';
-	gridEl.style.width = WORLD_SIZE+'px';
-	gridEl.style.height = WORLD_SIZE+'px';
-	this.gridBg = new THREE.CSS3DObject(gridEl);
-	this.gridBg.position.z = -10;
-	this.scene.add(this.gridBg);
+	// var gridEl = document.createElement('div');
+	// gridEl.id = 'grid-bg';
+	// gridEl.style.width = WORLD_SIZE+'px';
+	// gridEl.style.height = WORLD_SIZE+'px';
+	// this.gridBg = new THREE.CSS3DObject(gridEl);
+	// this.gridBg.position.z = -10;
+	// this.scene.add(this.gridBg);
 
 	// setup subcomponents
 	this.iface.setup();
 	this.controls.setup();
-
-	// :DEBUG: spawn an agent
-	this.spawnAgent();
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -46,6 +43,7 @@ World.prototype.spawnAgent = function(opts) {
 	if (!AgentCtor) AgentCtor = AgentTypes.service;
 
 	var agent = new AgentCtor(opts);
+	agent.setup();
 	this.agents[agent.id] = agent;
 	this.scene.add(agent);
 	return agent;

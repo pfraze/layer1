@@ -26,6 +26,7 @@ var CameraControls = function ( object, domElement ) {
 	this.noZoom = false;
 	this.noPan = false;
 	this.noEdgePan = false;
+	this.noKeyboardPan = false;
 
 	this.staticMousePan = false;
 	this.staticKeyboardPan = true; // :TODO: support for false
@@ -162,11 +163,12 @@ var CameraControls = function ( object, domElement ) {
 				panAmt.copy(_panAmt);
 			}
 
-
-			if (_keysDown[KEY_LEFT])  { panAmt.x += _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_RIGHT]) { panAmt.x -= _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_UP])    { panAmt.y += _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_DOWN])  { panAmt.y -= _this.panSpeedKeyboard; }
+			if (!_this.noKeyboardPan) {
+				if (_keysDown[KEY_LEFT])  { panAmt.x += _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_RIGHT]) { panAmt.x -= _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_UP])    { panAmt.y += _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_DOWN])  { panAmt.y -= _this.panSpeedKeyboard; }
+			}
 
 			if ( panAmt.lengthSq() ) {
 

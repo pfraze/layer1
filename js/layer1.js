@@ -27,6 +27,7 @@ var CameraControls = function ( object, domElement ) {
 	this.noZoom = false;
 	this.noPan = false;
 	this.noEdgePan = false;
+	this.noKeyboardPan = false;
 
 	this.staticMousePan = false;
 	this.staticKeyboardPan = true; // :TODO: support for false
@@ -163,11 +164,12 @@ var CameraControls = function ( object, domElement ) {
 				panAmt.copy(_panAmt);
 			}
 
-
-			if (_keysDown[KEY_LEFT])  { panAmt.x += _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_RIGHT]) { panAmt.x -= _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_UP])    { panAmt.y += _this.panSpeedKeyboard; }
-			if (_keysDown[KEY_DOWN])  { panAmt.y -= _this.panSpeedKeyboard; }
+			if (!_this.noKeyboardPan) {
+				if (_keysDown[KEY_LEFT])  { panAmt.x += _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_RIGHT]) { panAmt.x -= _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_UP])    { panAmt.y += _this.panSpeedKeyboard; }
+				if (_keysDown[KEY_DOWN])  { panAmt.y -= _this.panSpeedKeyboard; }
+			}
 
 			if ( panAmt.lengthSq() ) {
 
@@ -517,6 +519,9 @@ Menu.prototype.getFormValues = function() { return this.formValues; };
 Menu.prototype.render = function() {
 	if (!this.doc) return '';
 	var html = '', i;
+	if (this.doc.title) {
+		html += '<p class="form-title">'+this.doc.title+'</p>';
+	}
 	if (this.doc.form) {
 		html += '<p>'+(this.doc.method||'POST').toUpperCase()+'</p>';
 		for (i=0; i < this.doc.form.length; i++) {
@@ -671,18 +676,21 @@ function getDefaultMenudoc(path) {
 	switch (path) {
 	case '/':
 		return {
+			title: 'World',
 			submenu: [
 				{ name: 'spawn', label: '(S)pawn', hotkey: 's' },
 			]
 		};
 	case '/spawn':
 		return {
+			title: 'World',
 			submenu: [
 				{ name: 'service', label: '(S)ervice', hotkey: 's' }
 			]
 		};
 	case '/spawn/service':
 		return {
+			title: 'World',
 			method: 'SPAWN',
 			form: [{ type: 'text', name: 'url', label: 'URL' }, { type: 'hidden', name: 'type', value: 'service' }]
 		};
@@ -721,6 +729,7 @@ function setup() {
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
+	cameraControls.noKeyboardPan = true;
 	cameraControls.staticMousePan = true;
 	cameraControls.addEventListener( 'change', render );
 }
@@ -760,8 +769,20 @@ function Agent(opts) {
 
 	// initial state
 	this.isSelected = false;
+	this.isResolved = false;
+	this.isBroken = false;
+	this.url = opts.url || null;
+	this.links = [];
+	this.fetchMetaResponse = null;
+
+	// visual
+	this.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+this.url+'</div>';
 }
 Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
+
+Agent.prototype.setup = function() {
+	this.fetchMeta();
+};
 
 Agent.prototype.setSelected = function(v) {
 	this.isSelected = v;
@@ -772,14 +793,155 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-// :TEMP: this will eventually be replaced with HTTP
+Agent.prototype.setResolved = function(v) {
+	this.isResolved = v;
+	if (v) {
+		this.isBroken = false;
+		this.element.classList.remove('broken');
+		this.element.classList.add('resolved');
+	} else {
+		this.element.classList.remove('resolved');
+	}
+};
+
+Agent.prototype.setBroken = function(v) {
+	this.isBroken = v;
+	if (v) {
+		this.isResolved = false;
+		this.element.classList.remove('resolved');
+		this.element.classList.add('broken');
+	} else {
+		this.element.classList.remove('broken');
+	}
+};
+
+Agent.prototype.getTitle = function() {
+	var title = 'Agent @'+this.url;
+	if (this.isBroken) { title += ' [broken: '+this.fetchMetaResponse.status+' '+this.fetchMetaResponse.reason+']'; }
+	else if (!this.isResolved) { title += ' [building...]'; }
+	return title;
+};
+
 Agent.prototype.getMenuDoc = function(path) {
+	switch (path) {
+	case '/':
+		return {
+			title: this.getTitle(),
+			submenu: [
+				{ name: 'action', label: '(A)ction', hotkey: 'a' },
+			]
+		};
+	case '/action':
+		return {
+			title: this.getTitle(),
+			submenu: [
+				{ name: 'go', label: '(G)o to', hotkey: 'g' }
+			]
+		};
+	case '/action/go':
+		return {
+			title: this.getTitle(),
+			method: 'MOVE',
+			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
+		};
+	}
+	return null;
+};
+
+Agent.prototype.fetchMeta = function() {
+	var self = this;
+	return local.HEAD(this.url).then(
+		function(res) {
+			self.fetchMetaResponse = res;
+			self.setResolved(true);
+			self.links = res.parsedHeaders.link;
+			self.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+self.url+'</div>';
+			return res;
+		},
+		function(res) {
+			self.fetchMetaResponse = res;
+			self.setBroken(true);
+			self.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+self.url+'</div>';
+			throw res;
+		}
+	);
+};
+
+module.exports = Agent;
+},{}],10:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Collection(opts) {
+	Agent.call(this, opts);
+	this.element.style.backgroundImage = 'url(img/icons/document_folder.png)';
+}
+Collection.prototype = Object.create(Agent.prototype);
+module.exports = Collection;
+},{"./base-agent":9}],11:[function(require,module,exports){
+module.exports = {
+	collection: require('./collection'),
+	item: require('./item'),
+	iterator: require('./iterator'),
+	query: require('./query'),
+	queue: require('./queue'),
+	service: require('./service'),
+	transformer: require('./transformer'),
+	transport: require('./transport')
+};
+},{"./collection":10,"./item":12,"./iterator":13,"./query":14,"./queue":15,"./service":16,"./transformer":17,"./transport":18}],12:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Item(opts) {
+	Agent.call(this, opts);
+	this.element.style.backgroundImage = 'url(img/icons/document_index.png)';
+}
+Item.prototype = Object.create(Agent.prototype);
+module.exports = Item;
+},{"./base-agent":9}],13:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Iterator(opts) {
+	Agent.call(this, opts);
+}
+Iterator.prototype = Object.create(Agent.prototype);
+module.exports = Iterator;
+},{"./base-agent":9}],14:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Query(opts) {
+	Agent.call(this, opts);
+}
+Query.prototype = Object.create(Agent.prototype);
+module.exports = Query;
+},{"./base-agent":9}],15:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Queue(opts) {
+	Agent.call(this, opts);
+}
+Queue.prototype = Object.create(Agent.prototype);
+module.exports = Queue;
+},{"./base-agent":9}],16:[function(require,module,exports){
+var Agent = require('./base-agent');
+
+function Service(opts) {
+	Agent.call(this, opts);
+
+	// setup visuals
+	this.element.style.backgroundImage = 'url(img/icons/computer.png)';
+
+	// load data about endpoint
+	this.fetchMeta();
+}
+Service.prototype = Object.create(Agent.prototype);
+module.exports = Service;
+
+/*Service.prototype.getMenuDoc = function(path) {
 	switch (path) {
 	case '/':
 		return {
 			submenu: [
 				{ name: 'action', label: '(A)ction', hotkey: 'a' },
-				{ name: 'create', label: '(C)reate', hotkey: 'c' },
 			]
 		};
 	case '/action':
@@ -793,95 +955,26 @@ Agent.prototype.getMenuDoc = function(path) {
 			method: 'MOVE',
 			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
 		};
-	case '/create':
-		return {
-			submenu: [
-				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
-				{ name: 'group', label: '(G)roup', hotkey: 'g' },
-				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
-			]
-		};
 	}
 	return null;
-};
-
-module.exports = Agent;
-},{}],10:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Collection(opts) {
-	Agent.call(this, opts);
-}
-Collection.prototype = Object.create(Agent.prototype);
-module.exports = Collection;
-},{"../agent":9}],11:[function(require,module,exports){
-module.exports = {
-	collection: require('./collection'),
-	item: require('./item'),
-	iterator: require('./iterator'),
-	query: require('./query'),
-	queue: require('./queue'),
-	service: require('./service'),
-	transformer: require('./transformer'),
-	transport: require('./transport')
-};
-},{"./collection":10,"./item":12,"./iterator":13,"./query":14,"./queue":15,"./service":16,"./transformer":17,"./transport":18}],12:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Item(opts) {
-	Agent.call(this, opts);
-}
-Item.prototype = Object.create(Agent.prototype);
-module.exports = Item;
-},{"../agent":9}],13:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Iterator(opts) {
-	Agent.call(this, opts);
-}
-Iterator.prototype = Object.create(Agent.prototype);
-module.exports = Iterator;
-},{"../agent":9}],14:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Query(opts) {
-	Agent.call(this, opts);
-}
-Query.prototype = Object.create(Agent.prototype);
-module.exports = Query;
-},{"../agent":9}],15:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Queue(opts) {
-	Agent.call(this, opts);
-}
-Queue.prototype = Object.create(Agent.prototype);
-module.exports = Queue;
-},{"../agent":9}],16:[function(require,module,exports){
-var Agent = require('../agent');
-
-function Service(opts) {
-	Agent.call(this, opts);
-}
-Service.prototype = Object.create(Agent.prototype);
-module.exports = Service;
-},{"../agent":9}],17:[function(require,module,exports){
-var Agent = require('../agent');
+};*/
+},{"./base-agent":9}],17:[function(require,module,exports){
+var Agent = require('./base-agent');
 
 function Transformer(opts) {
 	Agent.call(this, opts);
 }
 Transformer.prototype = Object.create(Agent.prototype);
 module.exports = Transformer;
-},{"../agent":9}],18:[function(require,module,exports){
-var Agent = require('../agent');
+},{"./base-agent":9}],18:[function(require,module,exports){
+var Agent = require('./base-agent');
 
 function Transport(opts) {
 	Agent.call(this, opts);
 }
 Transport.prototype = Object.create(Agent.prototype);
 module.exports = Transport;
-},{"../agent":9}],19:[function(require,module,exports){
+},{"./base-agent":9}],19:[function(require,module,exports){
 module.exports = require('./world');
 },{"./world":20}],20:[function(require,module,exports){
 var AgentTypes = require('./agents');
@@ -905,20 +998,17 @@ World.prototype.setup = function(scene) {
 	this.scene = scene;
 
 	// create background
-	var gridEl = document.createElement('div');
-	gridEl.id = 'grid-bg';
-	gridEl.style.width = WORLD_SIZE+'px';
-	gridEl.style.height = WORLD_SIZE+'px';
-	this.gridBg = new THREE.CSS3DObject(gridEl);
-	this.gridBg.position.z = -10;
-	this.scene.add(this.gridBg);
+	// var gridEl = document.createElement('div');
+	// gridEl.id = 'grid-bg';
+	// gridEl.style.width = WORLD_SIZE+'px';
+	// gridEl.style.height = WORLD_SIZE+'px';
+	// this.gridBg = new THREE.CSS3DObject(gridEl);
+	// this.gridBg.position.z = -10;
+	// this.scene.add(this.gridBg);
 
 	// setup subcomponents
 	this.iface.setup();
 	this.controls.setup();
-
-	// :DEBUG: spawn an agent
-	this.spawnAgent();
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -932,6 +1022,7 @@ World.prototype.spawnAgent = function(opts) {
 	if (!AgentCtor) AgentCtor = AgentTypes.service;
 
 	var agent = new AgentCtor(opts);
+	agent.setup();
 	this.agents[agent.id] = agent;
 	this.scene.add(agent);
 	return agent;
