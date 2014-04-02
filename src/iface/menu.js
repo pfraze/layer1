@@ -16,6 +16,8 @@ Menu.prototype.set = function(doc) {
 	this.formValues.length = 0;
 
 	this.el.innerHTML = this.render();
+
+	// do any
 };
 
 Menu.prototype.reset = function() {
@@ -37,6 +39,7 @@ Menu.prototype.render = function() {
 		for (i=0; i < this.doc.form.length; i++) {
 			var fi = this.doc.form[i];
 			var a = (i === this.activeFormItem);
+			if (fi.type == 'hidden') { continue; }
 			html += '<div class="form-item form-item-'+fi.type+' '+((a)?'form-item-active':'')+'" type="'+fi.type+'">'+this.renderFormItem(fi, a)+'</div>';
 		}
 	}
@@ -53,7 +56,7 @@ Menu.prototype.render = function() {
 Menu.prototype.renderFormItem = function(formItem, isActive) {
 	switch (formItem.type) {
 	case 'text':
-		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text">' : '<textarea rows="'+formItem.rows+'"></textarea>';
+		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text" '+((isActive)?'autofocus':'')+'>' : '<textarea rows="'+formItem.rows+'"></textarea>';
 		return '<p>'+formItem.label+'<br>'+ctrl+'</p>';
 	case 'position':
 		return '<p>'+formItem.label+' <small>Left-click on the map to choose the position</small></p>';
@@ -66,8 +69,22 @@ Menu.prototype.renderFormItem = function(formItem, isActive) {
 			return '<p>'+formItem.label+' <small>Left-click on agents on the map</small></p>';
 		}
 		return '<p>'+formItem.label+' <small>Left-click an agent on the map</small></p>';
+	case 'hidden':
+		return '';
 	}
 	return '<p>Form item type "'+formItem.type+'" is not valid.</p>';
+};
+
+Menu.prototype.goNextFormItem = function() {
+	this.activeFormItem++;
+	// advance past any hiddens
+	for (; this.activeFormItem < this.doc.form.length; this.activeFormItem++) {
+		if (this.doc.form[this.activeFormItem].type != 'hidden') {
+			break;
+		}
+		// copy over hidden item's value
+		this.formValues[this.activeFormItem] = this.doc.form[this.activeFormItem].value;
+	}
 };
 
 Menu.prototype.onInput = function(e) {
@@ -75,7 +92,7 @@ Menu.prototype.onInput = function(e) {
 	if (fi && fi.type == e.valueType) {
 		// Update form
 		this.formValues[this.activeFormItem] = e.value;
-		this.activeFormItem++;
+		this.goNextFormItem();
 
 		// Done? Emit submit
 		if (this.activeFormItem >= this.doc.form.length) {

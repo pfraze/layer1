@@ -1,4 +1,4 @@
 body { margin: 0; font-family: consolas;}
 #grid-bg { background: url(../img/background.jpg); }
-.agent { width: 100px; height: 100px; padding: 5px; border: 3px solid blue; background: white; }
-.agent.selected { border-color: red; }
+.agent { width: 64px; height: 64px; padding: 5px; background: url(../img/icons/user_astronaut.png) top left no-repeat; background-size: contain; }
+.agent.selected { border: 3px solid blue; }

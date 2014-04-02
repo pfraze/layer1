@@ -1,4 +1,4 @@
-var Agent = require('./agent');
+var AgentTypes = require('./agents');
 var WorldInterface = require('../iface').World;
 var WorldControls = require('../controls').World;
 
@@ -9,8 +9,7 @@ function World() {
 	this.iface = new WorldInterface(this);
 	this.controls = new WorldControls(this);
 
-	this.agents = [];
-	this.agentIdMap = {};
+	this.agents = {};
 
 	this.selectedItems = [];
 }
@@ -38,12 +37,16 @@ World.prototype.setup = function(scene) {
 
 World.prototype.getAgent = function(idOrEl) {
 	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
-	return this.agentIdMap[id];
+	return this.agents[id];
 };
 
 World.prototype.spawnAgent = function(opts) {
-	var agent = new Agent(opts);
-	this.agentIdMap[agent.id] = agent;
+	var type = opts ? opts.type : undefined;
+	var AgentCtor = AgentTypes[type];
+	if (!AgentCtor) AgentCtor = AgentTypes.service;
+
+	var agent = new AgentCtor(opts);
+	this.agents[agent.id] = agent;
 	this.scene.add(agent);
 	return agent;
 };
@@ -66,7 +69,12 @@ World.prototype.select = function(items) {
 
 World.prototype.selectionDispatch = function(method, body) {
 	// :TEMP:
-	if (method == 'MOVE') {
+	if (method == 'SPAWN') {
+		this.spawnAgent(body);
+	}
+	else if (method == 'MOVE') {
 		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	} else {
+		throw "Unknown method: "+method;
 	}
 };

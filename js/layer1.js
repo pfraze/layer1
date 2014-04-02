@@ -398,6 +398,19 @@ MenuControls.prototype.onKeyDown = function(e) {
 
 MenuControls.prototype.onKeyPress = function(e) {
 	var c = String.fromCharCode(e.which||e.keyCode);
+
+	// awaiting a keypress
+	var fi = this.menu.getActiveFormItem();
+	if (fi && fi.type == 'text') {
+		if (e.target.tagName == 'INPUT' && e.which == 13) {
+			this.menu.dispatchEvent({ type: 'input', valueType: 'text', value: e.target.value });
+			e.preventDefault();
+		}
+		e.stopPropagation();
+		return;
+	}
+
+	// menu hotkey
 	var id = this.menu.hotkeyToItemName(c);
 	if (id) {
 		this.menu.dispatchEvent({ type: 'select', item: id });
@@ -416,12 +429,16 @@ MenuControls.prototype.onClick = function(e) {
 		return;
 	}
 
-	// awaiting a click
+	// in a form
 	var fi = this.menu.getActiveFormItem();
-	if (fi && fi.type == 'position') {
-		var pos = new THREE.Vector3();
-		window.cameraControls.getMouseInWorld(e, pos);
-		this.menu.dispatchEvent({ type: 'input', valueType: 'position', value: pos });
+	if (fi) {
+		// awaiting a click
+		if (fi.type == 'position') {
+			var pos = new THREE.Vector3();
+			window.cameraControls.getMouseInWorld(e, pos);
+			this.menu.dispatchEvent({ type: 'input', valueType: 'position', value: pos });
+		}
+		// stop event
 		e.preventDefault();
 		e.stopPropagation();
 	}
@@ -482,6 +499,8 @@ Menu.prototype.set = function(doc) {
 	this.formValues.length = 0;
 
 	this.el.innerHTML = this.render();
+
+	// do any
 };
 
 Menu.prototype.reset = function() {
@@ -503,6 +522,7 @@ Menu.prototype.render = function() {
 		for (i=0; i < this.doc.form.length; i++) {
 			var fi = this.doc.form[i];
 			var a = (i === this.activeFormItem);
+			if (fi.type == 'hidden') { continue; }
 			html += '<div class="form-item form-item-'+fi.type+' '+((a)?'form-item-active':'')+'" type="'+fi.type+'">'+this.renderFormItem(fi, a)+'</div>';
 		}
 	}
@@ -519,7 +539,7 @@ Menu.prototype.render = function() {
 Menu.prototype.renderFormItem = function(formItem, isActive) {
 	switch (formItem.type) {
 	case 'text':
-		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text">' : '<textarea rows="'+formItem.rows+'"></textarea>';
+		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text" '+((isActive)?'autofocus':'')+'>' : '<textarea rows="'+formItem.rows+'"></textarea>';
 		return '<p>'+formItem.label+'<br>'+ctrl+'</p>';
 	case 'position':
 		return '<p>'+formItem.label+' <small>Left-click on the map to choose the position</small></p>';
@@ -532,8 +552,22 @@ Menu.prototype.renderFormItem = function(formItem, isActive) {
 			return '<p>'+formItem.label+' <small>Left-click on agents on the map</small></p>';
 		}
 		return '<p>'+formItem.label+' <small>Left-click an agent on the map</small></p>';
+	case 'hidden':
+		return '';
 	}
 	return '<p>Form item type "'+formItem.type+'" is not valid.</p>';
+};
+
+Menu.prototype.goNextFormItem = function() {
+	this.activeFormItem++;
+	// advance past any hiddens
+	for (; this.activeFormItem < this.doc.form.length; this.activeFormItem++) {
+		if (this.doc.form[this.activeFormItem].type != 'hidden') {
+			break;
+		}
+		// copy over hidden item's value
+		this.formValues[this.activeFormItem] = this.doc.form[this.activeFormItem].value;
+	}
 };
 
 Menu.prototype.onInput = function(e) {
@@ -541,7 +575,7 @@ Menu.prototype.onInput = function(e) {
 	if (fi && fi.type == e.valueType) {
 		// Update form
 		this.formValues[this.activeFormItem] = e.value;
-		this.activeFormItem++;
+		this.goNextFormItem();
 
 		// Done? Emit submit
 		if (this.activeFormItem >= this.doc.form.length) {
@@ -628,7 +662,7 @@ WorldInterface.prototype.recreateMenu = function() {
 };
 
 WorldInterface.prototype.onFormSubmit = function(e) {
-	this.world.selectionDispatch(this.mainMenu.doc.method, this.mainMenu.makeFormBody());
+	this.world.selectionDispatch(this.mainMenu.doc.method.toUpperCase(), this.mainMenu.makeFormBody());
 	this.mainMenu.reset();
 };
 
@@ -638,16 +672,19 @@ function getDefaultMenudoc(path) {
 	case '/':
 		return {
 			submenu: [
-				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+				{ name: 'spawn', label: '(S)pawn', hotkey: 's' },
 			]
 		};
-	case '/create':
+	case '/spawn':
 		return {
 			submenu: [
-				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
-				{ name: 'group', label: '(G)roup', hotkey: 'g' },
-				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+				{ name: 'service', label: '(S)ervice', hotkey: 's' }
 			]
+		};
+	case '/spawn/service':
+		return {
+			method: 'SPAWN',
+			form: [{ type: 'text', name: 'url', label: 'URL' }, { type: 'hidden', name: 'type', value: 'service' }]
 		};
 	}
 	return null;
@@ -708,14 +745,13 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./controls":2,"./world":10}],9:[function(require,module,exports){
+},{"./controls":2,"./world":19}],9:[function(require,module,exports){
 function Agent(opts) {
 	// setup options
 	if (!opts) { opts = {}; }
 	if (!opts.el) {
 		opts.el = document.createElement('div');
 		opts.el.className = 'agent';
-		opts.el.innerHTML = '<div style="background:red">test</div>';
 	}
 
 	// parent
@@ -771,9 +807,84 @@ Agent.prototype.getMenuDoc = function(path) {
 
 module.exports = Agent;
 },{}],10:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Collection(opts) {
+	Agent.call(this, opts);
+}
+Collection.prototype = Object.create(Agent.prototype);
+module.exports = Collection;
+},{"../agent":9}],11:[function(require,module,exports){
+module.exports = {
+	collection: require('./collection'),
+	item: require('./item'),
+	iterator: require('./iterator'),
+	query: require('./query'),
+	queue: require('./queue'),
+	service: require('./service'),
+	transformer: require('./transformer'),
+	transport: require('./transport')
+};
+},{"./collection":10,"./item":12,"./iterator":13,"./query":14,"./queue":15,"./service":16,"./transformer":17,"./transport":18}],12:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Item(opts) {
+	Agent.call(this, opts);
+}
+Item.prototype = Object.create(Agent.prototype);
+module.exports = Item;
+},{"../agent":9}],13:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Iterator(opts) {
+	Agent.call(this, opts);
+}
+Iterator.prototype = Object.create(Agent.prototype);
+module.exports = Iterator;
+},{"../agent":9}],14:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Query(opts) {
+	Agent.call(this, opts);
+}
+Query.prototype = Object.create(Agent.prototype);
+module.exports = Query;
+},{"../agent":9}],15:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Queue(opts) {
+	Agent.call(this, opts);
+}
+Queue.prototype = Object.create(Agent.prototype);
+module.exports = Queue;
+},{"../agent":9}],16:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Service(opts) {
+	Agent.call(this, opts);
+}
+Service.prototype = Object.create(Agent.prototype);
+module.exports = Service;
+},{"../agent":9}],17:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Transformer(opts) {
+	Agent.call(this, opts);
+}
+Transformer.prototype = Object.create(Agent.prototype);
+module.exports = Transformer;
+},{"../agent":9}],18:[function(require,module,exports){
+var Agent = require('../agent');
+
+function Transport(opts) {
+	Agent.call(this, opts);
+}
+Transport.prototype = Object.create(Agent.prototype);
+module.exports = Transport;
+},{"../agent":9}],19:[function(require,module,exports){
 module.exports = require('./world');
-},{"./world":11}],11:[function(require,module,exports){
-var Agent = require('./agent');
+},{"./world":20}],20:[function(require,module,exports){
+var AgentTypes = require('./agents');
 var WorldInterface = require('../iface').World;
 var WorldControls = require('../controls').World;
 
@@ -784,8 +895,7 @@ function World() {
 	this.iface = new WorldInterface(this);
 	this.controls = new WorldControls(this);
 
-	this.agents = [];
-	this.agentIdMap = {};
+	this.agents = {};
 
 	this.selectedItems = [];
 }
@@ -813,12 +923,16 @@ World.prototype.setup = function(scene) {
 
 World.prototype.getAgent = function(idOrEl) {
 	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
-	return this.agentIdMap[id];
+	return this.agents[id];
 };
 
 World.prototype.spawnAgent = function(opts) {
-	var agent = new Agent(opts);
-	this.agentIdMap[agent.id] = agent;
+	var type = opts ? opts.type : undefined;
+	var AgentCtor = AgentTypes[type];
+	if (!AgentCtor) AgentCtor = AgentTypes.service;
+
+	var agent = new AgentCtor(opts);
+	this.agents[agent.id] = agent;
 	this.scene.add(agent);
 	return agent;
 };
@@ -841,9 +955,14 @@ World.prototype.select = function(items) {
 
 World.prototype.selectionDispatch = function(method, body) {
 	// :TEMP:
-	if (method == 'MOVE') {
+	if (method == 'SPAWN') {
+		this.spawnAgent(body);
+	}
+	else if (method == 'MOVE') {
 		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	} else {
+		throw "Unknown method: "+method;
 	}
 };
-},{"../controls":2,"../iface":5,"./agent":9}]},{},[8])
+},{"../controls":2,"../iface":5,"./agents":11}]},{},[8])
 ;

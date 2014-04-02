@@ -4,7 +4,6 @@ function Agent(opts) {
 	if (!opts.el) {
 		opts.el = document.createElement('div');
 		opts.el.className = 'agent';
-		opts.el.innerHTML = '<div style="background:red">test</div>';
 	}
 
 	// parent

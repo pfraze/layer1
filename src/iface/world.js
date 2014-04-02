@@ -54,7 +54,7 @@ WorldInterface.prototype.recreateMenu = function() {
 };
 
 WorldInterface.prototype.onFormSubmit = function(e) {
-	this.world.selectionDispatch(this.mainMenu.doc.method, this.mainMenu.makeFormBody());
+	this.world.selectionDispatch(this.mainMenu.doc.method.toUpperCase(), this.mainMenu.makeFormBody());
 	this.mainMenu.reset();
 };
 
@@ -64,16 +64,19 @@ function getDefaultMenudoc(path) {
 	case '/':
 		return {
 			submenu: [
-				{ name: 'create', label: '(C)reate', hotkey: 'c' },
+				{ name: 'spawn', label: '(S)pawn', hotkey: 's' },
 			]
 		};
-	case '/create':
+	case '/spawn':
 		return {
 			submenu: [
-				{ name: 'agent', label: '(A)gent', hotkey: 'a' },
-				{ name: 'group', label: '(G)roup', hotkey: 'g' },
-				{ name: 'formation', label: '(F)ormation', hotkey: 'f' }
+				{ name: 'service', label: '(S)ervice', hotkey: 's' }
 			]
+		};
+	case '/spawn/service':
+		return {
+			method: 'SPAWN',
+			form: [{ type: 'text', name: 'url', label: 'URL' }, { type: 'hidden', name: 'type', value: 'service' }]
 		};
 	}
 	return null;
