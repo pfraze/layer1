@@ -75,7 +75,14 @@ World.prototype.selectionDispatch = function(req) {
 		this.spawnAgent(req.body);
 	}
 	else if (req.method == 'MOVE') {
-		this.selectedItems.forEach(function(item) { item.position.copy(req.body.dest); });
+		this.selectedItems.forEach(function(item) {
+			new TWEEN.Tween({ x: item.position.x, y: item.position.y } )
+				.to({ x: req.body.dest.x, y: req.body.dest.y }, 300)
+				.easing(TWEEN.Easing.Quadratic.InOut)
+				.onUpdate(function () { item.position.set(this.x, this.y, 0); })
+				.start();
+			// item.position.copy(req.body.dest);
+		});
 	} else {
 		throw "Unknown method: "+method;
 	}

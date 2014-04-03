@@ -35,19 +35,18 @@ function setup() {
 }
 
 function onWindowResize() {
-
 	camera.aspect = window.innerWidth / window.innerHeight;
 	camera.updateProjectionMatrix();
 
 	renderer.setSize(window.innerWidth, window.innerHeight);
 
 	render();
-
 }
 
 function tick() {
 	requestAnimationFrame(tick);
 	cameraControls.update();
+	TWEEN.update();
 	render();
 }
 
