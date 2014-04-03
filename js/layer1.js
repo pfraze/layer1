@@ -449,12 +449,12 @@ MenuControls.prototype.onClick = function(e) {
 function WorldControls(world, domElement) {
 	this.world = world;
 	this.domElement = domElement || document.body;
-	this.setup();
 }
 module.exports = WorldControls;
 
 WorldControls.prototype.setup = function() {
 	this.domElement.addEventListener('click', this.onClick.bind(this), false);
+	this.domElement.addEventListener('contextmenu', this.onContextmenu.bind(this), false);
 };
 
 WorldControls.prototype.onClick = function(e) {
@@ -466,6 +466,20 @@ WorldControls.prototype.onClick = function(e) {
 			this.onLeftClickNothing(e);
 		}
 	}
+};
+
+WorldControls.prototype.onContextmenu = function(e) {
+	var sel = this.world.getSelection();
+	if (!sel[0]) return;
+
+	e.worldPos = new THREE.Vector3();
+	window.cameraControls.getMouseInWorld(e, e.worldPos);
+	var req = sel[0].getRightClickReq(e);
+	if (!req) return;
+
+	this.world.selectionDispatch(req);
+	e.preventDefault();
+	e.stopPropagation();
 };
 
 WorldControls.prototype.onLeftClickAgent = function(e, agentEl) {
@@ -667,7 +681,10 @@ WorldInterface.prototype.recreateMenu = function() {
 };
 
 WorldInterface.prototype.onFormSubmit = function(e) {
-	this.world.selectionDispatch(this.mainMenu.doc.method.toUpperCase(), this.mainMenu.makeFormBody());
+	this.world.selectionDispatch({
+		method: this.mainMenu.doc.method.toUpperCase(),
+		body: this.mainMenu.makeFormBody()
+	});
 	this.mainMenu.reset();
 };
 
@@ -711,7 +728,7 @@ window.world = world;
 function setup() {
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
-	camera.position.z = 3000;
+	camera.position.z = 1500;
 
 	// setup scene
 	window.scene = new THREE.Scene();
@@ -820,6 +837,13 @@ Agent.prototype.getTitle = function() {
 	if (this.isBroken) { title += ' [broken: '+this.fetchMetaResponse.status+' '+this.fetchMetaResponse.reason+']'; }
 	else if (!this.isResolved) { title += ' [building...]'; }
 	return title;
+};
+
+Agent.prototype.getRightClickReq = function(evt) {
+	return {
+		method: 'MOVE',
+		body: { dest: evt.worldPos }
+	};
 };
 
 Agent.prototype.getMenuDoc = function(path) {
@@ -1016,6 +1040,10 @@ World.prototype.getAgent = function(idOrEl) {
 	return this.agents[id];
 };
 
+World.prototype.getSelection = function() {
+	return this.selectedItems;
+};
+
 World.prototype.spawnAgent = function(opts) {
 	var type = opts ? opts.type : undefined;
 	var AgentCtor = AgentTypes[type];
@@ -1044,13 +1072,13 @@ World.prototype.select = function(items) {
 	this.iface.updateWorldSelection(this.selectedItems);
 };
 
-World.prototype.selectionDispatch = function(method, body) {
+World.prototype.selectionDispatch = function(req) {
 	// :TEMP:
-	if (method == 'SPAWN') {
-		this.spawnAgent(body);
+	if (req.method == 'SPAWN') {
+		this.spawnAgent(req.body);
 	}
-	else if (method == 'MOVE') {
-		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	else if (req.method == 'MOVE') {
+		this.selectedItems.forEach(function(item) { item.position.copy(req.body.dest); });
 	} else {
 		throw "Unknown method: "+method;
 	}

@@ -54,7 +54,10 @@ WorldInterface.prototype.recreateMenu = function() {
 };
 
 WorldInterface.prototype.onFormSubmit = function(e) {
-	this.world.selectionDispatch(this.mainMenu.doc.method.toUpperCase(), this.mainMenu.makeFormBody());
+	this.world.selectionDispatch({
+		method: this.mainMenu.doc.method.toUpperCase(),
+		body: this.mainMenu.makeFormBody()
+	});
 	this.mainMenu.reset();
 };
 

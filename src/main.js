@@ -11,7 +11,7 @@ window.world = world;
 function setup() {
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
-	camera.position.z = 3000;
+	camera.position.z = 1500;
 
 	// setup scene
 	window.scene = new THREE.Scene();

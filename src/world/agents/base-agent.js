@@ -65,6 +65,13 @@ Agent.prototype.getTitle = function() {
 	return title;
 };
 
+Agent.prototype.getRightClickReq = function(evt) {
+	return {
+		method: 'MOVE',
+		body: { dest: evt.worldPos }
+	};
+};
+
 Agent.prototype.getMenuDoc = function(path) {
 	switch (path) {
 	case '/':

@@ -37,6 +37,10 @@ World.prototype.getAgent = function(idOrEl) {
 	return this.agents[id];
 };
 
+World.prototype.getSelection = function() {
+	return this.selectedItems;
+};
+
 World.prototype.spawnAgent = function(opts) {
 	var type = opts ? opts.type : undefined;
 	var AgentCtor = AgentTypes[type];
@@ -65,13 +69,13 @@ World.prototype.select = function(items) {
 	this.iface.updateWorldSelection(this.selectedItems);
 };
 
-World.prototype.selectionDispatch = function(method, body) {
+World.prototype.selectionDispatch = function(req) {
 	// :TEMP:
-	if (method == 'SPAWN') {
-		this.spawnAgent(body);
+	if (req.method == 'SPAWN') {
+		this.spawnAgent(req.body);
 	}
-	else if (method == 'MOVE') {
-		this.selectedItems.forEach(function(item) { item.position.copy(body.dest); });
+	else if (req.method == 'MOVE') {
+		this.selectedItems.forEach(function(item) { item.position.copy(req.body.dest); });
 	} else {
 		throw "Unknown method: "+method;
 	}
