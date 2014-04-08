@@ -10,6 +10,16 @@ setup();
 tick();
 
 function setup() {
+	// setup local
+	local.logAllExceptions = true;
+	local.setDispatchWrapper(function(req, res, dispatch) {
+		var res_ = dispatch(req, res);
+		res_.then(
+			function() { console.log(req, res); },
+			function() { console.error(req, res); }
+		);
+	});
+
 	// setup services
 	local.addServer('cfg', new CfgServer());
 

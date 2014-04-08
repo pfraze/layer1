@@ -98,7 +98,7 @@ function fetch(url, useHead) {
 			if (attempts.length) {
 				makeAttempt(); // try the next one
 			} else {
-				p.fulfill(res); // no dice
+				p.reject(res); // no dice
 			}
 		}
 	}

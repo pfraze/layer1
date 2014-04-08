@@ -617,6 +617,11 @@ module.exports = CameraControls;
 var util = require('./util');
 var esc = util.escapeHTML;
 
+local.addServer('asdf', function(req, res) {
+	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'ASDF Agent', 'query-rel': 'collection' }]);
+	res.writeHead(204, 'OK No Content').end();
+});
+
 function CfgServer(opts) {
 	local.Server.call(this, opts);
 
@@ -659,15 +664,43 @@ CfgServer.prototype.rootGET = function(req, res) {
 CfgServer.prototype.rootPOST = function(req, res) {
 	var self = this;
 	req.on('end', function() {
-		res.writeHead(200, 'OK', {'Content-Type':'text/html'});
-		res.end(self.rootRenderHTML('<p>TODO</p>'));
+		if (!req.body || !req.body.url) {
+			res.writeHead(422, 'Bad Ent', {'Content-Type':'text/html'});
+			res.end(self.rootRenderHTML('<p class="text-danger">URL is required</p>'));
+			return;
+		}
+
+		util.fetchMeta(req.body.url)
+			.fail(function(res2) {
+				var resSummary;
+				if (res2.status) {
+					resSummary = esc(res2.status)+' '+esc(res2.reason||'');
+				} else {
+					resSummary = 'Does not exist or not allowed to access.';
+				}
+
+				res.writeHead(502, 'Bad Upstream', {'Content-Type':'text/html'});
+				res.end(self.rootRenderHTML('<p>Error: '+resSummary+'</p>'));
+			})
+			.then(function(res2) {
+				var agentLink = local.queryLinks(res2, { rel: 'self todorel.com/agent' })[0];
+				if (!agentLink) {
+					res.writeHead(502, 'Bad Upstream', {'Content-Type':'text/html'});
+					res.end(self.rootRenderHTML('<p>No agent link found</p>'));
+					return;
+				}
+
+				self.agents.push(agentLink);
+				res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+				res.end(self.rootRenderHTML());
+			});
 	});
 };
 
 CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	var html = '';
 	html += '<div style="margin: 5px">';
-	html += '<table class="table"><tr><th>Agent</th><th>Target</th></tr>';
+	html += '<table class="table"><tr><th style="min-width:200px">Agent</th><th style="min-width:100px">Target</th></tr>';
 	this.agents.forEach(function(agentLink) {
 		html += '<tr><td><a href="'+esc(agentLink.href)+'">'+esc(agentLink.title)+'</a></td>';
 		html += '<td>'+esc(agentLink['query-rel'])+'</td></tr>';
@@ -676,7 +709,7 @@ CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	html += '<form action="/" method="POST" class="form-inline">';
 	html +=   '<div class="form-group">';
 	html +=     '<label class="sr-only" for="url">URL</label>';
-	html +=     '<input type="url" name="url" placeholder="Enter URL" class="form-control">';
+	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
 	if (formMsg) html += formMsg;
 	html +=   '<button type="submit" class="btn btn-primary">Add Agent</button>';
@@ -697,6 +730,16 @@ setup();
 tick();
 
 function setup() {
+	// setup local
+	local.logAllExceptions = true;
+	local.setDispatchWrapper(function(req, res, dispatch) {
+		var res_ = dispatch(req, res);
+		res_.then(
+			function() { console.log(req, res); },
+			function() { console.error(req, res); }
+		);
+	});
+
 	// setup services
 	local.addServer('cfg', new CfgServer());
 
@@ -845,7 +888,7 @@ function fetch(url, useHead) {
 			if (attempts.length) {
 				makeAttempt(); // try the next one
 			} else {
-				p.fulfill(res); // no dice
+				p.reject(res); // no dice
 			}
 		}
 	}
