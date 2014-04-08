@@ -56,6 +56,51 @@ Agent.prototype.fetch = function() {
 	);
 };
 
+Agent.prototype.dispatch = function(req) {
+	var self = this;
+	var target = req.target; // local.Request() will strip `target`
+	var body = req.body; delete req.body;
+
+	if (!req.headers) { req.headers = {}; }
+	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
+	req = (req instanceof local.Request) ? req : (new local.Request(req));
+
+	// Relative link? Make absolute
+	if (!local.isAbsUri(req.url)) {
+		req.url = local.joinRelPath(this.getBaseUrl(), req.url);
+	}
+
+	// Handle request based on target and origin
+	var res_;
+	if (!target || target == '_self') {
+		// In-place update
+		res_ = local.dispatch(req);
+		res_.always(function(res) {
+			self.url = req.url;
+			self.lastResponse = res;
+			self.render();
+		});
+	} /*else if (target == '_child') { :TODO: wanted?
+		throw "target=_child Not yet implemented";
+		// New iframe
+		res_ = local.dispatch(req);
+		res_.always(function(res) {
+			var $newIframe = createIframe($('todo'), newOrigin); // :TODO: - container
+			renderIframe($newIframe, util.renderResponse(req, res));
+			return res;
+		});
+	} else if ((!$iframe && !target) || target == '_null') {
+		// Null target, simple dispatch
+		res_ = local.dispatch(req);
+	}*/ else {
+		console.error('Invalid request target', target, req, origin);
+		return null;
+	}
+
+	req.end(body);
+	return res_;
+};
+
 Agent.prototype.moveTo = function(dest) {
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
@@ -76,7 +121,7 @@ Agent.prototype.render = function() {
 	}
 	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
 	var prependHTML = [
-		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
 		// ^ script-src 'self' enables the parent page to reach into the iframe
 		'<base href="'+this.getBaseUrl()+'">',
 		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
@@ -90,16 +135,17 @@ Agent.prototype.render = function() {
 	// :HACK: everything below here in this function kinda blows
 
 	// Size the iframe to its content
-	iframe.addEventListener('load', sizeIframe); // :TODO: shouldnt this only be set once?
+	iframe.addEventListener('load', sizeIframe); // must be set every load
 
 	// Bind request events
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
+	var reqHandler = iframeRequestEventHandler.bind(this);
 	var clickHandler = iframeClickEventHandler.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
-			iframe.contentDocument.body.addEventListener('request', iframeRequestEventHandler);
+			iframe.contentDocument.body.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', clickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
@@ -135,8 +181,7 @@ function sizeIframe() {
 }
 
 function iframeRequestEventHandler(e) {
-	// :TODO:
-	console.log(e);
+	this.dispatch(e.detail);
 }
 
 function iframeClickEventHandler(e) {

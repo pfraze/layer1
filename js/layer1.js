@@ -57,6 +57,51 @@ Agent.prototype.fetch = function() {
 	);
 };
 
+Agent.prototype.dispatch = function(req) {
+	var self = this;
+	var target = req.target; // local.Request() will strip `target`
+	var body = req.body; delete req.body;
+
+	if (!req.headers) { req.headers = {}; }
+	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
+	req = (req instanceof local.Request) ? req : (new local.Request(req));
+
+	// Relative link? Make absolute
+	if (!local.isAbsUri(req.url)) {
+		req.url = local.joinRelPath(this.getBaseUrl(), req.url);
+	}
+
+	// Handle request based on target and origin
+	var res_;
+	if (!target || target == '_self') {
+		// In-place update
+		res_ = local.dispatch(req);
+		res_.always(function(res) {
+			self.url = req.url;
+			self.lastResponse = res;
+			self.render();
+		});
+	} /*else if (target == '_child') { :TODO: wanted?
+		throw "target=_child Not yet implemented";
+		// New iframe
+		res_ = local.dispatch(req);
+		res_.always(function(res) {
+			var $newIframe = createIframe($('todo'), newOrigin); // :TODO: - container
+			renderIframe($newIframe, util.renderResponse(req, res));
+			return res;
+		});
+	} else if ((!$iframe && !target) || target == '_null') {
+		// Null target, simple dispatch
+		res_ = local.dispatch(req);
+	}*/ else {
+		console.error('Invalid request target', target, req, origin);
+		return null;
+	}
+
+	req.end(body);
+	return res_;
+};
+
 Agent.prototype.moveTo = function(dest) {
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
@@ -77,7 +122,7 @@ Agent.prototype.render = function() {
 	}
 	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
 	var prependHTML = [
-		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
 		// ^ script-src 'self' enables the parent page to reach into the iframe
 		'<base href="'+this.getBaseUrl()+'">',
 		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
@@ -91,16 +136,17 @@ Agent.prototype.render = function() {
 	// :HACK: everything below here in this function kinda blows
 
 	// Size the iframe to its content
-	iframe.addEventListener('load', sizeIframe); // :TODO: shouldnt this only be set once?
+	iframe.addEventListener('load', sizeIframe); // must be set every load
 
 	// Bind request events
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
+	var reqHandler = iframeRequestEventHandler.bind(this);
 	var clickHandler = iframeClickEventHandler.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
-			iframe.contentDocument.body.addEventListener('request', iframeRequestEventHandler);
+			iframe.contentDocument.body.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', clickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
@@ -136,8 +182,7 @@ function sizeIframe() {
 }
 
 function iframeRequestEventHandler(e) {
-	// :TODO:
-	console.log(e);
+	this.dispatch(e.detail);
 }
 
 function iframeClickEventHandler(e) {
@@ -569,17 +614,77 @@ function setIframePointerEvents(v) {
 
 module.exports = CameraControls;
 },{}],3:[function(require,module,exports){
+var util = require('./util');
+var esc = util.escapeHTML;
+
 function CfgServer(opts) {
 	local.Server.call(this, opts);
+
+	this.agents = [];
+
+	// :DEBUG:
+	this.agents.push({
+		href: 'httpl://service-agent',
+		rel: 'todorel.com/agent',
+		'query-rel': 'service',
+		title: 'Service Agent'
+	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);
 module.exports = CfgServer;
 
 CfgServer.prototype.handleLocalRequest = function(req, res) {
-	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
-	res.end('<div class=well style="margin: 15px">CFG</div>');
+	if (req.path == '/') {
+		this.root(req, res);
+	} else {
+		res.writeHead(404).end();
+	}
 };
-},{}],4:[function(require,module,exports){
+
+CfgServer.prototype.root = function(req, res) {
+	if (req.method == 'GET') {
+		this.rootGET(req, res);
+	} else if (req.method == 'POST') {
+		this.rootPOST(req, res);
+	} else {
+		res.writeHead(405).end();
+	}
+};
+
+CfgServer.prototype.rootGET = function(req, res) {
+	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+	res.end(this.rootRenderHTML());
+};
+
+CfgServer.prototype.rootPOST = function(req, res) {
+	var self = this;
+	req.on('end', function() {
+		res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+		res.end(self.rootRenderHTML('<p>TODO</p>'));
+	});
+};
+
+CfgServer.prototype.rootRenderHTML = function(formMsg) {
+	var html = '';
+	html += '<div style="margin: 5px">';
+	html += '<table class="table"><tr><th>Agent</th><th>Target</th></tr>';
+	this.agents.forEach(function(agentLink) {
+		html += '<tr><td><a href="'+esc(agentLink.href)+'">'+esc(agentLink.title)+'</a></td>';
+		html += '<td>'+esc(agentLink['query-rel'])+'</td></tr>';
+	});
+	html += '</table>';
+	html += '<form action="/" method="POST" class="form-inline">';
+	html +=   '<div class="form-group">';
+	html +=     '<label class="sr-only" for="url">URL</label>';
+	html +=     '<input type="url" name="url" placeholder="Enter URL" class="form-control">';
+	html +=   '</div>';
+	if (formMsg) html += formMsg;
+	html +=   '<button type="submit" class="btn btn-primary">Add Agent</button>';
+	html += '</form>';
+	html += '</div>';
+	return html;
+};
+},{"./util":5}],4:[function(require,module,exports){
 var World = require('./world');
 var CameraControls = require('./camera-controls');
 var CfgServer = require('./cfg-server');
