@@ -1,5 +1,6 @@
 var World = require('./world');
 var CameraControls = require('./camera-controls');
+var CfgServer = require('./cfg-server');
 
 // global state & behaviors
 window.world = new World(); // a whole new woooooorld
@@ -9,6 +10,9 @@ setup();
 tick();
 
 function setup() {
+	// setup services
+	local.addServer('cfg', new CfgServer());
+
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 1500;

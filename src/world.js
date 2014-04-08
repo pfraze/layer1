@@ -30,8 +30,7 @@ World.prototype.setup = function(scene) {
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	// :DEBUG:
-	this.spawnAgent({ url: 'httpl://temp' });
+	this.spawnAgent({ url: 'httpl://cfg' });
 };
 
 World.prototype.getAgent = function(idOrEl) {

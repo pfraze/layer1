@@ -75,10 +75,12 @@ Agent.prototype.render = function() {
 	if (body && typeof body == 'object') {
 		body = JSON.stringify(body);
 	}
-	body = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src *; script-src \'self\';" />'+body;
-	// ^ script-src 'self' enables the parent page to reach into the iframe
-	body = '<base href="'+this.getBaseUrl()+'">'+body;
-	body = util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
+	var prependHTML = [
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		// ^ script-src 'self' enables the parent page to reach into the iframe
+		'<base href="'+this.getBaseUrl()+'">'
+	].join('');
+	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
 
 	// set iframe
 	var iframe = this.element.querySelector('iframe');
@@ -179,7 +181,7 @@ Agent.prototype.getBaseUrl = function() {
 };
 
 module.exports = Agent;
-},{"./util":4}],2:[function(require,module,exports){
+},{"./util":5}],2:[function(require,module,exports){
 /**
  * Based on TrackballControls.js
  * @author Paul Frazee
@@ -564,8 +566,20 @@ function setIframePointerEvents(v) {
 
 module.exports = CameraControls;
 },{}],3:[function(require,module,exports){
+function CfgServer(opts) {
+	local.Server.call(this, opts);
+}
+CfgServer.prototype = Object.create(local.Server.prototype);
+module.exports = CfgServer;
+
+CfgServer.prototype.handleLocalRequest = function(req, res) {
+	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+	res.end('<span style="color:red">CFG</span>');
+};
+},{}],4:[function(require,module,exports){
 var World = require('./world');
 var CameraControls = require('./camera-controls');
+var CfgServer = require('./cfg-server');
 
 // global state & behaviors
 window.world = new World(); // a whole new woooooorld
@@ -575,6 +589,9 @@ setup();
 tick();
 
 function setup() {
+	// setup services
+	local.addServer('cfg', new CfgServer());
+
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 1500;
@@ -619,7 +636,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./camera-controls":2,"./world":5}],4:[function(require,module,exports){
+},{"./camera-controls":2,"./cfg-server":3,"./world":6}],5:[function(require,module,exports){
 var lbracket_regex = /</g;
 var rbracket_regex = />/g;
 function escapeHTML(str) {
@@ -737,7 +754,7 @@ module.exports = {
 	fetch: fetch,
 	fetchMeta: function(url) { return fetch(url, true); }
 };
-},{}],5:[function(require,module,exports){
+},{}],6:[function(require,module,exports){
 var Agent = require('./agent');
 var WORLD_SIZE = 5000;
 
@@ -770,8 +787,7 @@ World.prototype.setup = function(scene) {
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	// :DEBUG:
-	this.spawnAgent({ url: 'httpl://temp' });
+	this.spawnAgent({ url: 'httpl://cfg' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -828,5 +844,5 @@ function contextmenuHandler(e) {
 		this.getSelection().moveTo(worldPos);
 	}
 }
-},{"./agent":1}]},{},[3])
+},{"./agent":1}]},{},[4])
 ;

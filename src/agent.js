@@ -74,10 +74,12 @@ Agent.prototype.render = function() {
 	if (body && typeof body == 'object') {
 		body = JSON.stringify(body);
 	}
-	body = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src *; script-src \'self\';" />'+body;
-	// ^ script-src 'self' enables the parent page to reach into the iframe
-	body = '<base href="'+this.getBaseUrl()+'">'+body;
-	body = util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
+	var prependHTML = [
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		// ^ script-src 'self' enables the parent page to reach into the iframe
+		'<base href="'+this.getBaseUrl()+'">'
+	].join('');
+	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
 
 	// set iframe
 	var iframe = this.element.querySelector('iframe');
