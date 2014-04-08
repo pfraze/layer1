@@ -284,14 +284,16 @@ var CameraControls = function ( object, domElement ) {
 	}
 
 	function mousedown(event) {
-		if (event.which == 2) { // middle click
+		if (event.which == 1) { // left click
 			_this.getMouseOnScreen(event, _panStart);
 			_panEnd.copy(_panStart);
+			setIframePointerEvents('none');
 			_isPanning = true;
 		}
 	}
 	function mouseup(event) {
-		if (event.which == 2) { // middle click
+		if (event.which == 1) { // left click
+			setIframePointerEvents(null);
 			_isPanning = false;
 		}
 	}
@@ -370,5 +372,12 @@ var CameraControls = function ( object, domElement ) {
 };
 
 CameraControls.prototype = Object.create( THREE.EventDispatcher.prototype );
+
+function setIframePointerEvents(v) {
+	var iframes = document.querySelectorAll('iframe');
+	for (var i=0; i < iframes.length; i++) {
+		iframes[i].style.pointerEvents = v;
+	}
+}
 
 module.exports = CameraControls;
