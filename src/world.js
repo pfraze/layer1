@@ -13,20 +13,23 @@ World.prototype.setup = function(scene) {
 	this.scene = scene;
 
 	// create background
-	// var gridEl = document.createElement('div');
-	// gridEl.id = 'grid-bg';
-	// gridEl.style.width = WORLD_SIZE+'px';
-	// gridEl.style.height = WORLD_SIZE+'px';
-	// this.gridBg = new THREE.CSS3DObject(gridEl);
-	// this.gridBg.position.z = -10;
-	// this.scene.add(this.gridBg);
+	var gridEl = document.createElement('div');
+	gridEl.id = 'grid-bg';
+	gridEl.style.width = WORLD_SIZE+'px';
+	gridEl.style.height = WORLD_SIZE+'px';
+	this.gridBg = new THREE.CSS3DObject(gridEl);
+	this.gridBg.position.z = -10;
+	this.scene.add(this.gridBg);
+
+	// setup event handlers
+	document.body.addEventListener('click', clickHandler.bind(this));
 
 	// :DEBUG:
 	this.spawnAgent({ url: 'http://stdrel.com' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl; // slice 7 to pass 'agent-' and go to the number
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(6) : idOrEl; // slice 6 to pass 'agent-' and go to the number
 	return this.agents[id];
 };
 
@@ -54,3 +57,13 @@ World.prototype.select = function(agent) {
 		agent.setSelected(true);
 	}
 };
+
+function clickHandler(e) {
+	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+	if (agentEl) {
+		var agent = this.getAgent(agentEl);
+		this.select(agent);
+	} else {
+		this.select(null);
+	}
+}

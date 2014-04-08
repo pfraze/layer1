@@ -83,10 +83,12 @@ Agent.prototype.render = function() {
 	// Bind request events
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
+	var clickHandler = iframeClickEventHandler.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', iframeRequestEventHandler);
+			iframe.contentDocument.addEventListener('click', clickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -123,6 +125,10 @@ function sizeIframe() {
 function iframeRequestEventHandler(e) {
 	// :TODO:
 	console.log(e);
+}
+
+function iframeClickEventHandler(e) {
+	this.element.dispatchEvent(new MouseEvent(e.type, e));
 }
 
 Agent.prototype.setSelected = function(v) {
@@ -543,11 +549,7 @@ CameraControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 function setIframePointerEvents(v) {
 	var iframes = document.querySelectorAll('iframe');
 	for (var i=0; i < iframes.length; i++) {
-		// if (v) {
-			iframes[i].style.pointerEvents = v;
-		// } else {
-		// 	delete iframes[i].style.pointerEvents;
-		// }
+		iframes[i].style.pointerEvents = v;
 	}
 }
 
@@ -742,20 +744,23 @@ World.prototype.setup = function(scene) {
 	this.scene = scene;
 
 	// create background
-	// var gridEl = document.createElement('div');
-	// gridEl.id = 'grid-bg';
-	// gridEl.style.width = WORLD_SIZE+'px';
-	// gridEl.style.height = WORLD_SIZE+'px';
-	// this.gridBg = new THREE.CSS3DObject(gridEl);
-	// this.gridBg.position.z = -10;
-	// this.scene.add(this.gridBg);
+	var gridEl = document.createElement('div');
+	gridEl.id = 'grid-bg';
+	gridEl.style.width = WORLD_SIZE+'px';
+	gridEl.style.height = WORLD_SIZE+'px';
+	this.gridBg = new THREE.CSS3DObject(gridEl);
+	this.gridBg.position.z = -10;
+	this.scene.add(this.gridBg);
+
+	// setup event handlers
+	document.body.addEventListener('click', clickHandler.bind(this));
 
 	// :DEBUG:
 	this.spawnAgent({ url: 'http://stdrel.com' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl; // slice 7 to pass 'agent-' and go to the number
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(6) : idOrEl; // slice 6 to pass 'agent-' and go to the number
 	return this.agents[id];
 };
 
@@ -783,5 +788,15 @@ World.prototype.select = function(agent) {
 		agent.setSelected(true);
 	}
 };
+
+function clickHandler(e) {
+	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+	if (agentEl) {
+		var agent = this.getAgent(agentEl);
+		this.select(agent);
+	} else {
+		this.select(null);
+	}
+}
 },{"./agent":1}]},{},[3])
 ;

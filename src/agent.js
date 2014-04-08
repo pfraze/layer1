@@ -82,10 +82,12 @@ Agent.prototype.render = function() {
 	// Bind request events
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
+	var clickHandler = iframeClickEventHandler.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', iframeRequestEventHandler);
+			iframe.contentDocument.addEventListener('click', clickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -122,6 +124,10 @@ function sizeIframe() {
 function iframeRequestEventHandler(e) {
 	// :TODO:
 	console.log(e);
+}
+
+function iframeClickEventHandler(e) {
+	this.element.dispatchEvent(new MouseEvent(e.type, e));
 }
 
 Agent.prototype.setSelected = function(v) {
