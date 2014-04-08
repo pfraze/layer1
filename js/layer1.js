@@ -1,4 +1,170 @@
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+var util = require('./util');
+
+function Agent(opts) {
+	// setup options
+	if (!opts) { opts = {}; }
+	if (!opts.el) {
+		opts.el = document.createElement('div');
+		opts.el.className = 'agent';
+	}
+	this.url = opts.url || null;
+
+	// parent
+	THREE.CSS3DObject.call(this, opts.el);
+	this.element.id = 'agent-'+this.id;
+
+	// initial state
+	this.isSelected = false;
+	this.isResolved = false;
+	this.isBroken = false;
+	this.links = [];
+	this.lastResponse = null;
+
+	// visual
+	this.element.innerHTML = '<div class="title">'+this.getTitle()+'</div><iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>';
+}
+Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
+
+Agent.prototype.setup = function() {
+	if (!this.url) { throw "Agent must have a url to be set up"; }
+	this.fetch();
+};
+
+Agent.prototype.getTitle = function() {
+	var title = this.url;
+	if (this.isBroken) { title += ' [broken: '+this.lastResponse.status+' '+this.lastResponse.reason+']'; }
+	else if (!this.isResolved) { title += ' [loading...]'; }
+	return util.escapeHTML(title);
+};
+
+Agent.prototype.fetch = function() {
+	var self = this;
+	return util.fetch(this.url).then(
+		function(res) {
+			self.lastResponse = res;
+			self.setResolved(true);
+			self.links = res.parsedHeaders.link;
+			self.render();
+			return res;
+		},
+		function(res) {
+			self.lastResponse = res;
+			self.setBroken(true);
+			self.render();
+			throw res;
+		}
+	);
+};
+
+Agent.prototype.render = function() {
+	// set title
+	this.element.querySelector('.title').innerHTML = this.getTitle();
+
+	// prep response body
+	var body = (this.lastResponse) ? this.lastResponse.body : '';
+	if (body && typeof body == 'object') {
+		body = JSON.stringify(body);
+	}
+	body = '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; img-src *; script-src \'self\';" />'+body;
+	// ^ script-src 'self' enables the parent page to reach into the iframe
+	body = '<base href="'+this.getBaseUrl()+'">'+body;
+	body = util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
+
+	// set iframe
+	var iframe = this.element.querySelector('iframe');
+	iframe.setAttribute('srcdoc', body);
+
+	// :HACK: everything below here in this function kinda blows
+
+	// Size the iframe to its content
+	iframe.addEventListener('load', sizeIframe); // :TODO: shouldnt this only be set once?
+
+	// Bind request events
+	// :TODO: can this go in .load() ? appears that it *cant*
+	var attempts = 0;
+	var bindPoller = setInterval(function() {
+		try {
+			local.bindRequestEvents(iframe.contentDocument.body);
+			iframe.contentDocument.body.addEventListener('request', iframeRequestEventHandler);
+			clearInterval(bindPoller);
+		} catch(e) {
+			attempts++;
+			if (attempts > 100) {
+				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
+				clearInterval(bindPoller);
+			}
+		}
+	}, 50); // wait 50 ms for the page to setup
+
+};
+
+function sizeIframe() {
+	this.height = null; // reset so we can get a fresh measurement
+
+	var oh = this.contentDocument.body.offsetHeight;
+	var sh = this.contentDocument.body.scrollHeight;
+	var w = this.contentDocument.body.scrollWidth;
+	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
+	this.height = ((sh == 150) ? oh : sh) + 'px';
+	this.width = ((w < 800) ? w : 800) + 'px';
+
+	// In 100ms, do it again - it seems styles aren't always in place
+	var self = this;
+	setTimeout(function() {
+		var oh = self.contentDocument.body.offsetHeight;
+		var sh = self.contentDocument.body.scrollHeight;
+		var w = self.contentDocument.body.scrollWidth;
+		self.height = ((sh == 150) ? oh : sh) + 'px';
+		self.width = ((w < 800) ? w : 800) + 'px';
+	}, 100);
+}
+
+function iframeRequestEventHandler(e) {
+	// :TODO:
+	console.log(e);
+}
+
+Agent.prototype.setSelected = function(v) {
+	this.isSelected = v;
+	if (v) {
+		this.element.classList.add('selected');
+	} else {
+		this.element.classList.remove('selected');
+	}
+};
+
+Agent.prototype.setResolved = function(v) {
+	this.isResolved = v;
+	if (v) {
+		this.isBroken = false;
+		this.element.classList.remove('broken');
+		this.element.classList.add('resolved');
+	} else {
+		this.element.classList.remove('resolved');
+	}
+};
+
+Agent.prototype.setBroken = function(v) {
+	this.isBroken = v;
+	if (v) {
+		this.isResolved = false;
+		this.element.classList.remove('resolved');
+		this.element.classList.add('broken');
+	} else {
+		this.element.classList.remove('broken');
+	}
+};
+
+Agent.prototype.getBaseUrl = function() {
+	if (!this.url) return '';
+	var urld = local.parseUri(this.url);
+	var basepath = urld.path.slice(0, urld.path.lastIndexOf('/'));
+	return urld.protocol + '://' + urld.authority + basepath + '/';
+};
+
+module.exports = Agent;
+},{"./util":4}],2:[function(require,module,exports){
 /**
  * Based on TrackballControls.js
  * @author Paul Frazee
@@ -373,357 +539,16 @@ var CameraControls = function ( object, domElement ) {
 CameraControls.prototype = Object.create( THREE.EventDispatcher.prototype );
 
 module.exports = CameraControls;
-},{}],2:[function(require,module,exports){
-module.exports = {
-	Camera: require('./camera'),
-	Menu: require('./menu'),
-	World: require('./world')
-};
-},{"./camera":1,"./menu":3,"./world":4}],3:[function(require,module,exports){
-function MenuControls(menu, domElement) {
-	this.menu = menu;
-	this.domElement = domElement || document.body;
-}
-module.exports = MenuControls;
+},{}],3:[function(require,module,exports){
+var World = require('./world');
+var CameraControls = require('./camera-controls');
 
-MenuControls.prototype.setup = function() {
-	document.body.addEventListener('keydown', this.onKeyDown.bind(this), false);
-	document.body.addEventListener('keypress', this.onKeyPress.bind(this), false);
-	document.body.addEventListener('click', this.onClick.bind(this), true); // on bubble
-};
-
-MenuControls.prototype.onKeyDown = function(e) {
-	if (e.keyCode == 27) { // escape, must be handled in keydown (not supported in keypress in all browsers)
-		this.menu.dispatchEvent({ type: 'unselect' }); // go back
-	}
-};
-
-MenuControls.prototype.onKeyPress = function(e) {
-	var c = String.fromCharCode(e.which||e.keyCode);
-
-	// awaiting a keypress
-	var fi = this.menu.getActiveFormItem();
-	if (fi && fi.type == 'text') {
-		if (e.target.tagName == 'INPUT' && e.which == 13) {
-			this.menu.dispatchEvent({ type: 'input', valueType: 'text', value: e.target.value });
-			e.preventDefault();
-		}
-		e.stopPropagation();
-		return;
-	}
-
-	// menu hotkey
-	var id = this.menu.hotkeyToItemName(c);
-	if (id) {
-		this.menu.dispatchEvent({ type: 'select', item: id });
-	}
-};
-
-MenuControls.prototype.onClick = function(e) {
-	if (e.which !== 1) return; // left click only
-
-	// menu items
-	var itemEl = local.util.findParentNode.byClass(e.target, 'menu-item');
-	if (itemEl && itemEl.attributes.getNamedItem('name')) {
-		this.menu.dispatchEvent({ type: 'select', item: itemEl.attributes.getNamedItem('name').value });
-		e.preventDefault();
-		e.stopPropagation();
-		return;
-	}
-
-	// in a form
-	var fi = this.menu.getActiveFormItem();
-	if (fi) {
-		// awaiting a click
-		if (fi.type == 'position') {
-			var pos = new THREE.Vector3();
-			window.cameraControls.getMouseInWorld(e, pos);
-			this.menu.dispatchEvent({ type: 'input', valueType: 'position', value: pos });
-		}
-		// stop event
-		e.preventDefault();
-		e.stopPropagation();
-	}
-};
-},{}],4:[function(require,module,exports){
-function WorldControls(world, domElement) {
-	this.world = world;
-	this.domElement = domElement || document.body;
-}
-module.exports = WorldControls;
-
-WorldControls.prototype.setup = function() {
-	this.domElement.addEventListener('click', this.onClick.bind(this), false);
-	this.domElement.addEventListener('contextmenu', this.onContextmenu.bind(this), false);
-};
-
-WorldControls.prototype.onClick = function(e) {
-	if (e.which == 1) { // left click
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (agentEl) {
-			this.onLeftClickAgent(e, agentEl);
-		} else {
-			this.onLeftClickNothing(e);
-		}
-	}
-};
-
-WorldControls.prototype.onContextmenu = function(e) {
-	var sel = this.world.getSelection();
-	if (!sel[0]) return;
-
-	e.worldPos = new THREE.Vector3();
-	window.cameraControls.getMouseInWorld(e, e.worldPos);
-	var req = sel[0].getRightClickReq(e);
-	if (!req) return;
-
-	this.world.selectionDispatch(req);
-	e.preventDefault();
-	e.stopPropagation();
-};
-
-WorldControls.prototype.onLeftClickAgent = function(e, agentEl) {
-	var agent = this.world.getAgent(agentEl);
-	this.world.select(agent);
-};
-
-WorldControls.prototype.onLeftClickNothing = function(e, agentEl) {
-	var agent = this.world.getAgent(agentEl);
-	this.world.select(null);
-};
-},{}],5:[function(require,module,exports){
-module.exports = {
-	Menu: require('./menu'),
-	World: require('./world')
-};
-},{"./menu":6,"./world":7}],6:[function(require,module,exports){
-
-function Menu(el) {
-	this.doc = null;
-	this.el = el;
-
-	this.addEventListener('input', this.onInput.bind(this));
-
-	this.activeFormItem = null;
-	this.formValues = [];
-}
-Menu.prototype = Object.create(THREE.EventDispatcher.prototype);
-
-Menu.prototype.set = function(doc) {
-	this.doc = doc;
-	this.activeFormItem = 0;
-	this.formValues.length = 0;
-
-	this.el.innerHTML = this.render();
-
-	// do any
-};
-
-Menu.prototype.reset = function() {
-	this.set(null);
-	this.dispatchEvent({ type: 'reset' });
-};
-
-Menu.prototype.getActiveFormItem = function() {
-	if (!this.doc || !this.doc.form || this.activeFormItem === null) { return null; }
-	return this.doc.form[this.activeFormItem];
-};
-Menu.prototype.getFormValues = function() { return this.formValues; };
-
-Menu.prototype.render = function() {
-	if (!this.doc) return '';
-	var html = '', i;
-	if (this.doc.title) {
-		html += '<p class="form-title">'+this.doc.title+'</p>';
-	}
-	if (this.doc.form) {
-		html += '<p>'+(this.doc.method||'POST').toUpperCase()+'</p>';
-		for (i=0; i < this.doc.form.length; i++) {
-			var fi = this.doc.form[i];
-			var a = (i === this.activeFormItem);
-			if (fi.type == 'hidden') { continue; }
-			html += '<div class="form-item form-item-'+fi.type+' '+((a)?'form-item-active':'')+'" type="'+fi.type+'">'+this.renderFormItem(fi, a)+'</div>';
-		}
-	}
-	if (this.doc.submenu) {
-		var lis = [];
-		for (i=0; i < this.doc.submenu.length; i++) {
-			lis.push('<li><a class="menu-item" name="'+this.doc.submenu[i].name+'" href="javascript:void()">'+this.doc.submenu[i].label+'</a></li>');
-		}
-		html += '<ul>'+lis.join('')+'</ul>';
-	}
-	return html;
-};
-
-Menu.prototype.renderFormItem = function(formItem, isActive) {
-	switch (formItem.type) {
-	case 'text':
-		var ctrl = (!formItem.rows || formItem.rows == 1) ? '<input type="text" '+((isActive)?'autofocus':'')+'>' : '<textarea rows="'+formItem.rows+'"></textarea>';
-		return '<p>'+formItem.label+'<br>'+ctrl+'</p>';
-	case 'position':
-		return '<p>'+formItem.label+' <small>Left-click on the map to choose the position</small></p>';
-	case 'direction':
-		return '<p>'+formItem.label+' <small>Left-click and drag to choose the direction</small></p>';
-	case 'region':
-		return '<p>'+formItem.label+' <small>Left-click and drag to create the region</small></p>';
-	case 'agent':
-		if (formItem.multiple) {
-			return '<p>'+formItem.label+' <small>Left-click on agents on the map</small></p>';
-		}
-		return '<p>'+formItem.label+' <small>Left-click an agent on the map</small></p>';
-	case 'hidden':
-		return '';
-	}
-	return '<p>Form item type "'+formItem.type+'" is not valid.</p>';
-};
-
-Menu.prototype.goNextFormItem = function() {
-	this.activeFormItem++;
-	// advance past any hiddens
-	for (; this.activeFormItem < this.doc.form.length; this.activeFormItem++) {
-		if (this.doc.form[this.activeFormItem].type != 'hidden') {
-			break;
-		}
-		// copy over hidden item's value
-		this.formValues[this.activeFormItem] = this.doc.form[this.activeFormItem].value;
-	}
-};
-
-Menu.prototype.onInput = function(e) {
-	var fi = this.getActiveFormItem();
-	if (fi && fi.type == e.valueType) {
-		// Update form
-		this.formValues[this.activeFormItem] = e.value;
-		this.goNextFormItem();
-
-		// Done? Emit submit
-		if (this.activeFormItem >= this.doc.form.length) {
-			this.dispatchEvent({ type: 'submit', values: this.formValues });
-		}
-	} else {
-		console.error(e, fi);
-		throw "Input event fired, but no active form item (or mismatched)";
-	}
-};
-
-Menu.prototype.hotkeyToItemName = function(c) {
-	if (!this.doc.submenu) return null;
-	for (var i=0; i < this.doc.submenu.length; i++) {
-		if (this.doc.submenu[i].hotkey === c)
-			return this.doc.submenu[i].name;
-	}
-	return null;
-};
-
-Menu.prototype.makeFormBody = function() {
-	var body = {};
-	for (i=0; i < this.doc.form.length; i++) {
-		body[this.doc.form[i].name] = this.formValues[i];
-	}
-	return body;
-};
-
-module.exports = Menu;
-},{}],7:[function(require,module,exports){
-var Menu = require('./menu');
-var MenuControls = require('../controls').Menu;
-
-function WorldInterface(world) {
-	this.world = world;
-
-	this.mainMenu = new Menu(document.getElementById('menu'));
-	this.mainMenuControls = new MenuControls(this.mainMenu);
-	this.mainMenuCursor = [];
-
-	this.selectedWorldItems = null;
-}
-module.exports = WorldInterface;
-WorldInterface.prototype = Object.create(THREE.EventDispatcher.prototype);
-WorldInterface.prototype.getMainMenu = function() { return this.mainMenu; };
-
-WorldInterface.prototype.setup = function() {
-	var self = this;
-	this.mainMenu.addEventListener('select', function(e) {
-		self.mainMenuCursor.push(e.item);
-		self.recreateMenu();
-	});
-	this.mainMenu.addEventListener('unselect', function(e) {
-		self.mainMenuCursor.pop();
-		self.recreateMenu();
-	});
-	this.mainMenu.addEventListener('reset', function(e) {
-		self.mainMenuCursor.length = 0;
-		self.recreateMenu();
-	});
-	this.mainMenu.addEventListener('submit', this.onFormSubmit.bind(this));
-
-	this.recreateMenu();
-	this.mainMenuControls.setup();
-};
-
-// called when the active selection has changed
-WorldInterface.prototype.updateWorldSelection = function(items) {
-	this.selectedWorldItems = items;
-
-	// reset menu for new selection
-	this.mainMenuCursor.length = 0;
-	this.recreateMenu();
-};
-
-WorldInterface.prototype.recreateMenu = function() {
-	// get menudoc endpoint
-	var item = (this.selectedWorldItems) ? this.selectedWorldItems[0] : null;
-	var getMenuDoc = (item) ? item.getMenuDoc.bind(item) : getDefaultMenudoc;
-	var path = '/' + this.mainMenuCursor.join('/');
-
-	// fetch menudoc and update menu
-	this.mainMenu.set(getMenuDoc(path));
-};
-
-WorldInterface.prototype.onFormSubmit = function(e) {
-	this.world.selectionDispatch({
-		method: this.mainMenu.doc.method.toUpperCase(),
-		body: this.mainMenu.makeFormBody()
-	});
-	this.mainMenu.reset();
-};
-
-// :TEMP:
-function getDefaultMenudoc(path) {
-	switch (path) {
-	case '/':
-		return {
-			title: 'World',
-			submenu: [
-				{ name: 'spawn', label: '(S)pawn', hotkey: 's' },
-			]
-		};
-	case '/spawn':
-		return {
-			title: 'World',
-			submenu: [
-				{ name: 'service', label: '(S)ervice', hotkey: 's' }
-			]
-		};
-	case '/spawn/service':
-		return {
-			title: 'World',
-			method: 'SPAWN',
-			form: [{ type: 'text', name: 'url', label: 'URL' }, { type: 'hidden', name: 'type', value: 'service' }]
-		};
-	}
-	return null;
-}
-},{"../controls":2,"./menu":6}],8:[function(require,module,exports){
-var world = require('./world');
-var controls = require('./controls');
+// global state & behaviors
+window.world = new World(); // a whole new woooooorld
 
 // init
 setup();
 tick();
-
-// global state & behaviors
-window.world = world;
 
 function setup() {
 	// setup camera
@@ -738,11 +563,11 @@ function setup() {
 	window.renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
-	document.getElementById('world').appendChild(renderer.domElement);
+	document.getElementById('world-div').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	window.cameraControls = new controls.Camera(camera, renderer.domElement);
+	window.cameraControls = new CameraControls(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
@@ -770,252 +595,135 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./controls":2,"./world":19}],9:[function(require,module,exports){
-function Agent(opts) {
-	// setup options
-	if (!opts) { opts = {}; }
-	if (!opts.el) {
-		opts.el = document.createElement('div');
-		opts.el.className = 'agent';
-	}
-
-	// parent
-	THREE.CSS3DObject.call(this, opts.el);
-	this.element.id = 'object-'+this.id;
-
-	// initial state
-	this.isSelected = false;
-	this.isResolved = false;
-	this.isBroken = false;
-	this.url = opts.url || null;
-	this.links = [];
-	this.fetchMetaResponse = null;
-
-	// visual
-	this.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+this.url+'</div>';
+},{"./camera-controls":2,"./world":5}],4:[function(require,module,exports){
+var lbracket_regex = /</g;
+var rbracket_regex = />/g;
+function escapeHTML(str) {
+	return (''+str).replace(lbracket_regex, '&lt;').replace(rbracket_regex, '&gt;');
 }
-Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
-Agent.prototype.setup = function() {
-	this.fetchMeta();
-};
+var quoteRegex = /"/g;
+function escapeQuotes(str) {
+	return (''+str).replace(quoteRegex, '&quot;');
+}
 
-Agent.prototype.setSelected = function(v) {
-	this.isSelected = v;
-	if (v) {
-		this.element.classList.add('selected');
-	} else {
-		this.element.classList.remove('selected');
-	}
-};
+var sanitizeHtmlRegexp = /<script(.*?)>(.*?)<\/script>/g;
+function stripScripts (html) {
+	// CSP stops inline or remote script execution, but we still want to stop inclusions of scripts on our domain
+	// :TODO: this approach probably naive in some important way
+	return html.replace(sanitizeHtmlRegexp, '');
+}
 
-Agent.prototype.setResolved = function(v) {
-	this.isResolved = v;
-	if (v) {
-		this.isBroken = false;
-		this.element.classList.remove('broken');
-		this.element.classList.add('resolved');
-	} else {
-		this.element.classList.remove('resolved');
-	}
-};
-
-Agent.prototype.setBroken = function(v) {
-	this.isBroken = v;
-	if (v) {
-		this.isResolved = false;
-		this.element.classList.remove('resolved');
-		this.element.classList.add('broken');
-	} else {
-		this.element.classList.remove('broken');
-	}
-};
-
-Agent.prototype.getTitle = function() {
-	var title = 'Agent @'+this.url;
-	if (this.isBroken) { title += ' [broken: '+this.fetchMetaResponse.status+' '+this.fetchMetaResponse.reason+']'; }
-	else if (!this.isResolved) { title += ' [building...]'; }
-	return title;
-};
-
-Agent.prototype.getRightClickReq = function(evt) {
-	return {
-		method: 'MOVE',
-		body: { dest: evt.worldPos }
-	};
-};
-
-Agent.prototype.getMenuDoc = function(path) {
-	switch (path) {
-	case '/':
-		return {
-			title: this.getTitle(),
-			submenu: [
-				{ name: 'action', label: '(A)ction', hotkey: 'a' },
-			]
-		};
-	case '/action':
-		return {
-			title: this.getTitle(),
-			submenu: [
-				{ name: 'go', label: '(G)o to', hotkey: 'g' }
-			]
-		};
-	case '/action/go':
-		return {
-			title: this.getTitle(),
-			method: 'MOVE',
-			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
-		};
-	}
-	return null;
-};
-
-Agent.prototype.fetchMeta = function() {
-	var self = this;
-	return local.HEAD(this.url).then(
-		function(res) {
-			self.fetchMetaResponse = res;
-			self.setResolved(true);
-			self.links = res.parsedHeaders.link;
-			self.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+self.url+'</div>';
-			return res;
-		},
-		function(res) {
-			self.fetchMetaResponse = res;
-			self.setBroken(true);
-			self.element.innerHTML = '<div style="position:relative;top:75px;white-space:pre">'+self.url+'</div>';
-			throw res;
+function renderResponse(req, res) {
+	if (res.body !== '') {
+		if (typeof res.body == 'string') {
+			if (res.header('Content-Type').indexOf('text/html') !== -1)
+				return res.body;
+			if (res.header('Content-Type').indexOf('image/') === 0) {
+				return '<img src="'+req.url+'">';
+				// :HACK: it appears that base64 encoding cant occur without retrieving the data as a binary array buffer
+				// - this could be done by first doing a HEAD request, then deciding whether to use binary according to the reported content-type
+				// - but that relies on consistent HEAD support, which is unlikely
+				// return '<img src="data:'+res.header('Content-Type')+';base64,'+btoa(res.body)+'">';
+			}
+			if (res.header('Content-Type').indexOf('javascript') !== -1)
+				return '<link href="css/prism.css" rel="stylesheet"><pre><code class="language-javascript">'+escapeHTML(res.body)+'</code></pre>';
+			return '<pre>'+escapeHTML(res.body)+'</pre>';
+		} else {
+			return '<link href="css/prism.css" rel="stylesheet"><pre><code class="language-javascript">'+escapeHTML(JSON.stringify(res.body))+'</code></pre>';
 		}
-	);
-};
-
-module.exports = Agent;
-},{}],10:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Collection(opts) {
-	Agent.call(this, opts);
-	this.element.style.backgroundImage = 'url(img/icons/document_folder.png)';
-}
-Collection.prototype = Object.create(Agent.prototype);
-module.exports = Collection;
-},{"./base-agent":9}],11:[function(require,module,exports){
-module.exports = {
-	collection: require('./collection'),
-	item: require('./item'),
-	iterator: require('./iterator'),
-	query: require('./query'),
-	queue: require('./queue'),
-	service: require('./service'),
-	transformer: require('./transformer'),
-	transport: require('./transport')
-};
-},{"./collection":10,"./item":12,"./iterator":13,"./query":14,"./queue":15,"./service":16,"./transformer":17,"./transport":18}],12:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Item(opts) {
-	Agent.call(this, opts);
-	this.element.style.backgroundImage = 'url(img/icons/document_index.png)';
-}
-Item.prototype = Object.create(Agent.prototype);
-module.exports = Item;
-},{"./base-agent":9}],13:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Iterator(opts) {
-	Agent.call(this, opts);
-}
-Iterator.prototype = Object.create(Agent.prototype);
-module.exports = Iterator;
-},{"./base-agent":9}],14:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Query(opts) {
-	Agent.call(this, opts);
-}
-Query.prototype = Object.create(Agent.prototype);
-module.exports = Query;
-},{"./base-agent":9}],15:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Queue(opts) {
-	Agent.call(this, opts);
-}
-Queue.prototype = Object.create(Agent.prototype);
-module.exports = Queue;
-},{"./base-agent":9}],16:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Service(opts) {
-	Agent.call(this, opts);
-
-	// setup visuals
-	this.element.style.backgroundImage = 'url(img/icons/computer.png)';
-
-	// load data about endpoint
-	this.fetchMeta();
-}
-Service.prototype = Object.create(Agent.prototype);
-module.exports = Service;
-
-/*Service.prototype.getMenuDoc = function(path) {
-	switch (path) {
-	case '/':
-		return {
-			submenu: [
-				{ name: 'action', label: '(A)ction', hotkey: 'a' },
-			]
-		};
-	case '/action':
-		return {
-			submenu: [
-				{ name: 'go', label: '(G)o to', hotkey: 'g' }
-			]
-		};
-	case '/action/go':
-		return {
-			method: 'MOVE',
-			form: [{ type: 'position', name: 'dest', label: 'Destination' }]
-		};
 	}
-	return null;
-};*/
-},{"./base-agent":9}],17:[function(require,module,exports){
-var Agent = require('./base-agent');
-
-function Transformer(opts) {
-	Agent.call(this, opts);
+	return res.status + ' ' + res.reason;
 }
-Transformer.prototype = Object.create(Agent.prototype);
-module.exports = Transformer;
-},{"./base-agent":9}],18:[function(require,module,exports){
-var Agent = require('./base-agent');
 
-function Transport(opts) {
-	Agent.call(this, opts);
+function fetch(url, useHead) {
+	var lookupReq;
+
+	var method = (useHead) ? 'HEAD' : 'GET';
+	var p = local.promise();
+	var urld = local.parseUri(url);
+	if (!urld || !urld.authority) {
+		p.fulfill(false); // bad url, dont even try it!
+		return p;
+	}
+
+	var triedProxy = false;
+	var attempts = [new local.Request({ method: method, url: url })]; // first attempt, as given
+	if (!urld.protocol) {
+		// No protocol? Two more attempts - 1 with https, then one with plain http
+		attempts.push(new local.Request({ method: method, url: 'https://'+urld.authority+urld.relative }));
+		attempts.push(new local.Request({ method: method, url: 'http://'+urld.authority+urld.relative }));
+	}
+
+	function makeAttempt() {
+		if (lookupReq) lookupReq.close();
+		lookupReq = attempts.shift();
+		local.dispatch(lookupReq).always(handleAttempt);
+		lookupReq.end();
+	}
+	makeAttempt();
+
+	function handleAttempt(res) {
+		if (res.status >= 200 && res.status < 300) {
+			p.fulfill(res); // Done!
+		} /* :TODO: proxy?
+		else if (!attempts.length && res.status === 0 && !triedProxy) {
+			// May be a CORS issue, try the proxy
+			triedProxy = true;
+			globals.fetchProxyUA.resolve({ nohead: true }).always(function(proxyUrl) {
+				if (!urld.protocol) {
+					if (useHead) {
+						attempts.push(new local.Request({ method: 'HEAD', url: proxyUrl, query: { url: 'https://'+urld.authority+urld.relative } }));
+						attempts.push(new local.Request({ method: 'HEAD', url: proxyUrl, query: { url: 'http://'+urld.authority+urld.relative } }));
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: 'https://'+urld.authority+urld.relative } }));
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: 'http://'+urld.authority+urld.relative } }));
+					} else {
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: 'https://'+urld.authority+urld.relative } }));
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: 'http://'+urld.authority+urld.relative } }));
+					}
+				} else {
+					if (useHead) {
+						attempts.push(new local.Request({ method: 'HEAD', url: proxyUrl, query: { url: url } }));
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: url } }));
+					} else {
+						attempts.push(new local.Request({ method: 'GET', url: proxyUrl, query: { url: url } }));
+					}
+				}
+				makeAttempt();
+			});
+		}*/ else {
+			// No dice, any attempts left?
+			if (attempts.length) {
+				makeAttempt(); // try the next one
+			} else {
+				p.fulfill(res); // no dice
+			}
+		}
+	}
+
+	return p;
 }
-Transport.prototype = Object.create(Agent.prototype);
-module.exports = Transport;
-},{"./base-agent":9}],19:[function(require,module,exports){
-module.exports = require('./world');
-},{"./world":20}],20:[function(require,module,exports){
-var AgentTypes = require('./agents');
-var WorldInterface = require('../iface').World;
-var WorldControls = require('../controls').World;
 
+module.exports = {
+	escapeHTML: escapeHTML,
+	makeSafe: escapeHTML,
+	escapeQuotes: escapeQuotes,
+	stripScripts: stripScripts,
+	renderResponse: renderResponse,
+	fetch: fetch,
+	fetchMeta: function(url) { return fetch(url, true); }
+};
+},{}],5:[function(require,module,exports){
+var Agent = require('./agent');
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
-	this.iface = new WorldInterface(this);
-	this.controls = new WorldControls(this);
 
 	this.agents = {};
-
-	this.selectedItems = [];
+	this.selectedAgent = null;
 }
-module.exports = new World();
+module.exports = World;
 
 World.prototype.setup = function(scene) {
 	this.scene = scene;
@@ -1029,65 +737,38 @@ World.prototype.setup = function(scene) {
 	// this.gridBg.position.z = -10;
 	// this.scene.add(this.gridBg);
 
-	// setup subcomponents
-	this.iface.setup();
-	this.controls.setup();
+	// :DEBUG:
+	this.spawnAgent({ url: 'http://stdrel.com' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl;
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(7) : idOrEl; // slice 7 to pass 'agent-' and go to the number
 	return this.agents[id];
 };
 
 World.prototype.getSelection = function() {
-	return this.selectedItems;
+	return this.selectedAgent;
 };
 
 World.prototype.spawnAgent = function(opts) {
-	var type = opts ? opts.type : undefined;
-	var AgentCtor = AgentTypes[type];
-	if (!AgentCtor) AgentCtor = AgentTypes.service;
-
-	var agent = new AgentCtor(opts);
+	var agent = new Agent(opts);
 	agent.setup();
 	this.agents[agent.id] = agent;
 	this.scene.add(agent);
 	return agent;
 };
 
-World.prototype.select = function(items) {
+World.prototype.select = function(agent) {
 	// clear current selection
-	this.selectedItems.forEach(function(item) { item.setSelected(false); });
+	if (this.selectedAgent) {
+		this.selectedAgent.setSelected(false);
+	}
 
 	// set new selection
-	if (items) {
-		this.selectedItems = (Array.isArray(items)) ? items : [items];
-		this.selectedItems.forEach(function(item) { item.setSelected(true); });
-	} else {
-		this.selectedItems.length = 0;
-	}
-
-	// update interface
-	this.iface.updateWorldSelection(this.selectedItems);
-};
-
-World.prototype.selectionDispatch = function(req) {
-	// :TEMP:
-	if (req.method == 'SPAWN') {
-		this.spawnAgent(req.body);
-	}
-	else if (req.method == 'MOVE') {
-		this.selectedItems.forEach(function(item) {
-			new TWEEN.Tween({ x: item.position.x, y: item.position.y } )
-				.to({ x: req.body.dest.x, y: req.body.dest.y }, 300)
-				.easing(TWEEN.Easing.Quadratic.InOut)
-				.onUpdate(function () { item.position.set(this.x, this.y, 0); })
-				.start();
-			// item.position.copy(req.body.dest);
-		});
-	} else {
-		throw "Unknown method: "+method;
+	this.selectedAgent = agent;
+	if (agent) {
+		agent.setSelected(true);
 	}
 };
-},{"../controls":2,"../iface":5,"./agents":11}]},{},[8])
+},{"./agent":1}]},{},[3])
 ;

@@ -1,12 +1,12 @@
-var world = require('./world');
-var controls = require('./controls');
+var World = require('./world');
+var CameraControls = require('./camera-controls');
+
+// global state & behaviors
+window.world = new World(); // a whole new woooooorld
 
 // init
 setup();
 tick();
-
-// global state & behaviors
-window.world = world;
 
 function setup() {
 	// setup camera
@@ -21,11 +21,11 @@ function setup() {
 	window.renderer = new THREE.CSS3DRenderer();
 	renderer.setSize(window.innerWidth, window.innerHeight);
 	renderer.domElement.style.position = 'absolute';
-	document.getElementById('world').appendChild(renderer.domElement);
+	document.getElementById('world-div').appendChild(renderer.domElement);
 	window.addEventListener('resize', onWindowResize, false);
 
 	// setup controls
-	window.cameraControls = new controls.Camera(camera, renderer.domElement);
+	window.cameraControls = new CameraControls(camera, renderer.domElement);
 	cameraControls.minDistance = 100;
 	cameraControls.maxDistance = 6000;
 	cameraControls.noEdgePan = true;
