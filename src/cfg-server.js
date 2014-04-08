@@ -6,5 +6,5 @@ module.exports = CfgServer;
 
 CfgServer.prototype.handleLocalRequest = function(req, res) {
 	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
-	res.end('<span style="color:red">CFG</span>');
+	res.end('<div class=well style="margin: 15px">CFG</div>');
 };

@@ -74,10 +74,12 @@ Agent.prototype.render = function() {
 	if (body && typeof body == 'object') {
 		body = JSON.stringify(body);
 	}
+	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
 	var prependHTML = [
 		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
 		// ^ script-src 'self' enables the parent page to reach into the iframe
-		'<base href="'+this.getBaseUrl()+'">'
+		'<base href="'+this.getBaseUrl()+'">',
+		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
 	].join('');
 	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
 
@@ -172,9 +174,10 @@ Agent.prototype.setBroken = function(v) {
 	}
 };
 
-Agent.prototype.getBaseUrl = function() {
-	if (!this.url) return '';
-	var urld = local.parseUri(this.url);
+Agent.prototype.getBaseUrl = function(url) {
+	if (!url) url = this.url;
+	if (!url) return '';
+	var urld = local.parseUri(url);
 	var basepath = urld.path.slice(0, urld.path.lastIndexOf('/'));
 	return urld.protocol + '://' + urld.authority + basepath + '/';
 };
