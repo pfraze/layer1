@@ -57,6 +57,15 @@ Agent.prototype.fetch = function() {
 	);
 };
 
+Agent.prototype.moveTo = function(dest) {
+	var self = this;
+	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
+		.to({ x: dest.x, y: dest.y }, 300)
+		.easing(TWEEN.Easing.Quadratic.InOut)
+		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
+		.start();
+};
+
 Agent.prototype.render = function() {
 	// set title
 	this.element.querySelector('.title').innerHTML = this.getTitle();
@@ -740,6 +749,11 @@ function World() {
 }
 module.exports = World;
 
+local.addServer('temp', function(req, res) {
+	res.writeHead(200, 'ok', {'Content-Type': 'text/html'});
+	res.end('<strong>yo</strong>');
+});
+
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
@@ -754,9 +768,10 @@ World.prototype.setup = function(scene) {
 
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
+	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	// :DEBUG:
-	this.spawnAgent({ url: 'http://stdrel.com' });
+	this.spawnAgent({ url: 'httpl://temp' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -790,12 +805,27 @@ World.prototype.select = function(agent) {
 };
 
 function clickHandler(e) {
+	if (e.which == 1) { // left mouse
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (agentEl) {
+			var agent = this.getAgent(agentEl);
+			this.select(agent);
+		} else {
+			this.select(null);
+		}
+	}
+}
+
+function contextmenuHandler(e) {
 	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-	if (agentEl) {
-		var agent = this.getAgent(agentEl);
-		this.select(agent);
-	} else {
-		this.select(null);
+	if (!agentEl) {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (!this.getSelection()) { return; }
+		var worldPos = new THREE.Vector3();
+		window.cameraControls.getMouseInWorld(e, worldPos);
+		this.getSelection().moveTo(worldPos);
 	}
 }
 },{"./agent":1}]},{},[3])

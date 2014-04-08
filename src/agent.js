@@ -56,6 +56,15 @@ Agent.prototype.fetch = function() {
 	);
 };
 
+Agent.prototype.moveTo = function(dest) {
+	var self = this;
+	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
+		.to({ x: dest.x, y: dest.y }, 300)
+		.easing(TWEEN.Easing.Quadratic.InOut)
+		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
+		.start();
+};
+
 Agent.prototype.render = function() {
 	// set title
 	this.element.querySelector('.title').innerHTML = this.getTitle();

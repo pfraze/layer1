@@ -9,6 +9,11 @@ function World() {
 }
 module.exports = World;
 
+local.addServer('temp', function(req, res) {
+	res.writeHead(200, 'ok', {'Content-Type': 'text/html'});
+	res.end('<strong>yo</strong>');
+});
+
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
@@ -23,9 +28,10 @@ World.prototype.setup = function(scene) {
 
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
+	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	// :DEBUG:
-	this.spawnAgent({ url: 'http://stdrel.com' });
+	this.spawnAgent({ url: 'httpl://temp' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -59,11 +65,26 @@ World.prototype.select = function(agent) {
 };
 
 function clickHandler(e) {
+	if (e.which == 1) { // left mouse
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (agentEl) {
+			var agent = this.getAgent(agentEl);
+			this.select(agent);
+		} else {
+			this.select(null);
+		}
+	}
+}
+
+function contextmenuHandler(e) {
 	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-	if (agentEl) {
-		var agent = this.getAgent(agentEl);
-		this.select(agent);
-	} else {
-		this.select(null);
+	if (!agentEl) {
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (!this.getSelection()) { return; }
+		var worldPos = new THREE.Vector3();
+		window.cameraControls.getMouseInWorld(e, worldPos);
+		this.getSelection().moveTo(worldPos);
 	}
 }
