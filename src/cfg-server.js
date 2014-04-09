@@ -2,7 +2,7 @@ var util = require('./util');
 var esc = util.escapeHTML;
 
 local.addServer('hello-world', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World Agent', 'query-rel': 'service' }]);
+	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World', 'query-rel': 'service' }]);
 	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px">Hello, world</div>');
 });
 
@@ -22,7 +22,7 @@ function CfgServer(opts) {
 		href: 'local://hello-world',
 		rel: 'todorel.com/agent',
 		'query-rel': 'service',
-		title: 'Hello World Agent'
+		title: 'Hello World'
 	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);
@@ -37,7 +37,7 @@ CfgServer.prototype.handleLocalRequest = function(req, res) {
 };
 
 CfgServer.prototype.root = function(req, res) {
-	res.header('Link', [{ href: '/', rel: 'self service', title: 'Base' }]);
+	res.header('Link', [{ href: '/', rel: 'self service', title: 'Program Loader' }]);
 	res.header('Content-Type', 'text/html');
 	/**/ if (req.method == 'HEAD') { res.writeHead(204).end(); }
 	else if (req.method == 'GET')  { this.rootGET(req, res); }
@@ -53,15 +53,14 @@ CfgServer.prototype.rootGET = function(req, res) {
 CfgServer.prototype.rootPOST = function(req, res) {
 	var self = this;
 	req.on('end', function() {
-		if (req.query.type != 'agent' && req.query.type != 'service') {
-			return res.writeHead(404, 'Invalid ?type - must be "agent" or "service"').end();
-		}
 		if (!req.body || !req.body.url) {
 			res.writeHead(422, 'Bad Ent');
-			var agentErr   = (req.query.type == 'agent')   ? '<p class="text-danger">URL is required</p>' : null;
-			var serviceErr = (req.query.type == 'service') ? '<p class="text-danger">URL is required</p>' : null;
-			res.end(self.rootRenderHTML(agentErr, serviceErr));
+			res.end(self.rootRenderHTML('<p class="text-danger">URL is required</p>'));
 			return;
+		}
+
+		function prepLink(link) {
+			link.rel = link.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
 		}
 
 		util.fetchMeta(req.body.url)
@@ -72,28 +71,22 @@ CfgServer.prototype.rootPOST = function(req, res) {
 					resSummary += ' (Does not exist or not allowed to access.)';
 				}
 				resSummary += '</p>';
-				var agentSummary   = (req.query.type == 'agent')   ? resSummary : null;
-				var serviceSummary = (req.query.type == 'service') ? resSummary : null;
 
 				res.writeHead(502, resReason);
-				res.end(self.rootRenderHTML(agentSummary, serviceSummary));
+				res.end(self.rootRenderHTML(resSummary));
 			})
 			.then(function(res2) {
-				if (req.query.type == 'agent') {
-					var agentLink = local.queryLinks(res2, { rel: 'self todorel.com/agent' })[0];
-					if (!agentLink) {
-						res.writeHead(502, 'self+todorel.com/agent link not found in Link header');
-						res.end(self.rootRenderHTML('<p>Not an agent</p>', null));
-						return;
-					}
+				var agentLink = local.queryLinks(res2, { rel: 'self todorel.com/agent' })[0];
+				var serviceLink;
+				if (agentLink) {
+					prepLink(agentLink);
 					self.agents.push(agentLink);
-				} else if (req.query.type == 'service') {
-					var serviceLink = local.queryLinks(res2, { rel: 'self service' })[0];
+				} else {
+					serviceLink = local.queryLinks(res2, { rel: 'self service' })[0];
 					if (!serviceLink) {
-						res.writeHead(502, 'self+service link not found in Link header');
-						res.end(self.rootRenderHTML(null, '<p>Not a service</p>'));
-						return;
+						serviceLink = { href: req.body.url, title: req.body.url, rel: 'self service' };
 					}
+					prepLink(serviceLink);
 					self.services.push(serviceLink);
 				}
 
@@ -103,7 +96,7 @@ CfgServer.prototype.rootPOST = function(req, res) {
 	});
 };
 
-CfgServer.prototype.rootRenderHTML = function(agentMsg, serviceMsg) {
+CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	var html = '';
 	html += '<div style="margin: 5px">';
 
@@ -114,32 +107,25 @@ CfgServer.prototype.rootRenderHTML = function(agentMsg, serviceMsg) {
 		html += '<td>'+esc(agentLink['query-rel'])+'</td></tr>';
 	});
 	html += '</table>';
-	html += '<form action="/?type=agent" method="POST" class="form-inline">';
-	html +=   '<div class="form-group">';
-	html +=     '<label class="sr-only" for="url">URL</label>';
-	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
-	html +=   '</div>';
-	if (agentMsg) html += agentMsg;
-	html +=   '<button type="submit" class="btn btn-primary">Add Agent</button>';
-	html += '</form>';
 
 	html += '<br>';
 
 	// services
 	html += '<table class="table"><tr><th style="min-width:200px">Service</th><th style="min-width:100px">Type</th></tr>';
 	this.services.forEach(function(serviceLink) {
-		var type = serviceLink.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
 		html += '<tr><td><a href="'+esc(serviceLink.href)+'">'+esc(serviceLink.title)+'</a></td>';
-		html += '<td>'+esc(type)+'</td></tr>';
+		html += '<td>'+esc(serviceLink.rel)+'</td></tr>';
 	});
 	html += '</table>';
-	html += '<form action="/?type=service" method="POST" class="form-inline">';
+
+	// form
+	html += '<form action="/" method="POST" class="form-inline">';
 	html +=   '<div class="form-group">';
 	html +=     '<label class="sr-only" for="url">URL</label>';
 	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
-	if (serviceMsg) html += serviceMsg;
-	html +=   '<button type="submit" class="btn btn-primary">Add Service</button>';
+	if (formMsg) html += formMsg;
+	html +=   '<button type="submit" class="btn btn-primary">Add</button>';
 	html += '</form>';
 
 	html += '</div>';
