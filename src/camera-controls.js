@@ -61,6 +61,7 @@ var CameraControls = function ( object, domElement ) {
 	_panEnd = new THREE.Vector2(),
 	_panAmt = new THREE.Vector2();
 
+
 	// for reset
 
 	this.target0 = this.target.clone();
@@ -190,6 +191,27 @@ var CameraControls = function ( object, domElement ) {
 
 				}
 
+			}
+		}
+
+	}());
+
+	this.moveToward = (function(){
+
+		// var panAmt = new THREE.Vector2(),
+		// 	objectUp = new THREE.Vector3(),
+		// 	pan = new THREE.Vector3();
+		var to;
+
+		return function (position) {
+
+			_panAmt.copy( position ).sub( _this.object.position );
+			_panAmt.x *= -0.1 / _eye.z;
+			_panAmt.y *=  0.1 / _eye.z;
+			if (_panAmt.lengthSq() < 0.001) { // lower bound
+				_panAmt.set(0,0);
+			} else {
+				setTimeout(function() { _panAmt.set(0,0); }, 150);
 			}
 		}
 

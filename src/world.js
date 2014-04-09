@@ -69,6 +69,7 @@ World.prototype.select = function(agent) {
 	this.selectedAgent = agent;
 	if (agent) {
 		agent.setSelected(true);
+		cameraControls.moveToward(agent.position);
 	}
 };
 
