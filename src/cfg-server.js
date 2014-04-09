@@ -1,9 +1,9 @@
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('asdf', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'ASDF Agent', 'query-rel': 'collection' }]);
-	res.writeHead(204, 'OK No Content').end();
+local.addServer('hello-world', function(req, res) {
+	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World Agent', 'query-rel': 'collection' }]);
+	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px">Hello, world</div>');
 });
 
 function CfgServer(opts) {
@@ -13,10 +13,10 @@ function CfgServer(opts) {
 
 	// :DEBUG:
 	this.agents.push({
-		href: 'httpl://service-agent',
+		href: 'local://hello-world',
 		rel: 'todorel.com/agent',
 		'query-rel': 'service',
-		title: 'Service Agent'
+		title: 'Hello World Agent'
 	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);

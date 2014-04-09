@@ -12,6 +12,7 @@ tick();
 function setup() {
 	// setup local
 	local.logAllExceptions = true;
+	local.schemes.register('local', local.schemes.get('httpl')); // use local://
 	local.setDispatchWrapper(function(req, res, dispatch) {
 		var res_ = dispatch(req, res);
 		res_.then(
@@ -21,7 +22,7 @@ function setup() {
 	});
 
 	// setup services
-	local.addServer('cfg', new CfgServer());
+	local.addServer('config', new CfgServer());
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);

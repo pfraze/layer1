@@ -9,8 +9,10 @@ function Agent(opts) {
 		opts.el.className = 'agent';
 	}
 	this.url = opts.url || null;
+	this.lastResponse = opts.lastResponse || null;
+	this.parentAgent = opts.parentAgent || null;
 
-	// parent
+	// super
 	THREE.CSS3DObject.call(this, opts.el);
 	this.element.id = 'agent-'+this.id;
 
@@ -19,10 +21,16 @@ function Agent(opts) {
 	this.isResolved = false;
 	this.isBroken = false;
 	this.links = [];
-	this.lastResponse = null;
+	if (this.parentAgent) {
+		this.position.copy(this.parentAgent.position);
+		this.position.x += 500;
+	}
 
 	// visual
 	this.element.innerHTML = '<div class="title">'+this.getTitle()+'</div><iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>';
+	if (this.lastResponse) {
+		local.util.nextTick(this.render.bind(this));
+	}
 }
 Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
@@ -66,37 +74,25 @@ Agent.prototype.dispatch = function(req) {
 	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
 	req = (req instanceof local.Request) ? req : (new local.Request(req));
 
-	// Relative link? Make absolute
+	// relative link? make absolute
 	if (!local.isAbsUri(req.url)) {
 		req.url = local.joinRelPath(this.getBaseUrl(), req.url);
 	}
 
-	// Handle request based on target and origin
-	var res_;
-	if (!target || target == '_self') {
-		// In-place update
-		res_ = local.dispatch(req);
-		res_.always(function(res) {
+	res_ = local.dispatch(req);
+	res_.always(function(res) {
+		var urld1 = local.parseUri(self.url);
+		var urld2 = local.parseUri(req.url);
+		if (urld1.protocol == urld2.protocol && urld1.authority == urld2.authority) {
+			// in-place
 			self.url = req.url;
 			self.lastResponse = res;
 			self.render();
-		});
-	} /*else if (target == '_child') { :TODO: wanted?
-		throw "target=_child Not yet implemented";
-		// New iframe
-		res_ = local.dispatch(req);
-		res_.always(function(res) {
-			var $newIframe = createIframe($('todo'), newOrigin); // :TODO: - container
-			renderIframe($newIframe, util.renderResponse(req, res));
-			return res;
-		});
-	} else if ((!$iframe && !target) || target == '_null') {
-		// Null target, simple dispatch
-		res_ = local.dispatch(req);
-	}*/ else {
-		console.error('Invalid request target', target, req, origin);
-		return null;
-	}
+		} else {
+			// spawn sub
+			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
+		}
+	});
 
 	req.end(body);
 	return res_;
@@ -113,7 +109,10 @@ Agent.prototype.moveTo = function(dest) {
 
 Agent.prototype.render = function() {
 	// set title
-	this.element.querySelector('.title').innerHTML = this.getTitle();
+	this.element.querySelector('.title').innerHTML = [
+		this.getTitle(),
+		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
+	].join('');
 
 	// prep response body
 	var body = (this.lastResponse) ? this.lastResponse.body : '';
@@ -617,9 +616,9 @@ module.exports = CameraControls;
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('asdf', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'ASDF Agent', 'query-rel': 'collection' }]);
-	res.writeHead(204, 'OK No Content').end();
+local.addServer('hello-world', function(req, res) {
+	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World Agent', 'query-rel': 'collection' }]);
+	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px">Hello, world</div>');
 });
 
 function CfgServer(opts) {
@@ -629,10 +628,10 @@ function CfgServer(opts) {
 
 	// :DEBUG:
 	this.agents.push({
-		href: 'httpl://service-agent',
+		href: 'local://hello-world',
 		rel: 'todorel.com/agent',
 		'query-rel': 'service',
-		title: 'Service Agent'
+		title: 'Hello World Agent'
 	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);
@@ -732,6 +731,7 @@ tick();
 function setup() {
 	// setup local
 	local.logAllExceptions = true;
+	local.schemes.register('local', local.schemes.get('httpl')); // use local://
 	local.setDispatchWrapper(function(req, res, dispatch) {
 		var res_ = dispatch(req, res);
 		res_.then(
@@ -741,7 +741,7 @@ function setup() {
 	});
 
 	// setup services
-	local.addServer('cfg', new CfgServer());
+	local.addServer('config', new CfgServer());
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
@@ -917,11 +917,6 @@ function World() {
 }
 module.exports = World;
 
-local.addServer('temp', function(req, res) {
-	res.writeHead(200, 'ok', {'Content-Type': 'text/html'});
-	res.end('<strong>yo</strong>');
-});
-
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
@@ -938,7 +933,7 @@ World.prototype.setup = function(scene) {
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	this.spawnAgent({ url: 'httpl://cfg' });
+	this.spawn({ url: 'local://config' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -950,7 +945,7 @@ World.prototype.getSelection = function() {
 	return this.selectedAgent;
 };
 
-World.prototype.spawnAgent = function(opts) {
+World.prototype.spawn = function(opts) {
 	var agent = new Agent(opts);
 	agent.setup();
 	this.agents[agent.id] = agent;

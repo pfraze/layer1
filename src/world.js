@@ -9,11 +9,6 @@ function World() {
 }
 module.exports = World;
 
-local.addServer('temp', function(req, res) {
-	res.writeHead(200, 'ok', {'Content-Type': 'text/html'});
-	res.end('<strong>yo</strong>');
-});
-
 World.prototype.setup = function(scene) {
 	this.scene = scene;
 
@@ -30,7 +25,7 @@ World.prototype.setup = function(scene) {
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	this.spawnAgent({ url: 'httpl://cfg' });
+	this.spawn({ url: 'local://config' });
 };
 
 World.prototype.getAgent = function(idOrEl) {
@@ -42,7 +37,7 @@ World.prototype.getSelection = function() {
 	return this.selectedAgent;
 };
 
-World.prototype.spawnAgent = function(opts) {
+World.prototype.spawn = function(opts) {
 	var agent = new Agent(opts);
 	agent.setup();
 	this.agents[agent.id] = agent;
