@@ -1,9 +1,14 @@
 body { margin: 0; font-family: consolas;}
 #grid-bg { background: url(../img/background.jpg); }
+
 .agent { background: white; border: 3px solid black ;}
 .agent:not(.resolved) { border: 3px dashed green; }
 .agent.broken { border: 3px dashed red; }
 .agent.selected { border: 3px solid #3276b1; }
+
 .agent .title { background: #ccc; padding: 5px 10px; }
+.agent .props-menu { display:none; background: rgba(0,0,0,0.15); position: absolute; top: 0; margin-left: 10px; padding: 5px 10px; min-width: 100px; }
+.agent.selected .props-menu { display: block; }
 
 .pull-right { float: right; }
+.hidden { display: none; }

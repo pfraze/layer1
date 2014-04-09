@@ -27,7 +27,11 @@ function Agent(opts) {
 	}
 
 	// visual
-	this.element.innerHTML = '<div class="title">'+this.getTitle()+'</div><iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>';
+	this.element.innerHTML = [
+		'<div class="title">'+this.getTitle()+'</div>',
+		'<div class="props-menu"></div>',
+		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
+	].join('');
 	if (this.lastResponse) {
 		local.util.nextTick(this.render.bind(this));
 	}
@@ -40,6 +44,7 @@ Agent.prototype.setup = function() {
 		this.setResolved(true);
 		this.links = this.lastResponse.parsedHeaders.link;
 		this.selfLink = local.queryLinks(this.links, {rel:'self'})[0];
+		if (this.selfLink) { prepLink(this.selfLink); }
 		this.render();
 	} else {
 		this.fetch();
@@ -58,6 +63,13 @@ Agent.prototype.getTitle = function() {
 	return util.escapeHTML(title);
 };
 
+Agent.prototype.getPropsMenu = function() {
+	if (!this.selfLink) { return ''; }
+	var html = '';
+	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
+	return html;
+};
+
 Agent.prototype.fetch = function() {
 	var self = this;
 	return util.fetch(this.url)
@@ -66,6 +78,7 @@ Agent.prototype.fetch = function() {
 			self.setResolved(true);
 			self.links = res.parsedHeaders.link;
 			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
 			self.render();
 			return res;
 		})
@@ -74,6 +87,7 @@ Agent.prototype.fetch = function() {
 			self.setBroken(true);
 			self.links = res.parsedHeaders.link;
 			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
 			self.render();
 			throw res;
 		});
@@ -118,7 +132,7 @@ Agent.prototype.dispatch = function(req) {
 Agent.prototype.moveTo = function(dest) {
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
-		.to({ x: dest.x, y: dest.y }, 300)
+		.to({ x: dest.x, y: dest.y }, 200)
 		.easing(TWEEN.Easing.Quadratic.InOut)
 		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
 		.start();
@@ -130,6 +144,10 @@ Agent.prototype.render = function() {
 		this.getTitle(),
 		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
 	].join('');
+	this.element.querySelector('.props-menu').innerHTML = [
+		this.getPropsMenu()
+	].join('');
+
 
 	// prep response body
 	var body = (this.lastResponse) ? this.lastResponse.body : '';
@@ -152,7 +170,7 @@ Agent.prototype.render = function() {
 	// :HACK: everything below here in this function kinda blows
 
 	// Size the iframe to its content
-	iframe.addEventListener('load', sizeIframe); // must be set every load
+	iframe.addEventListener('load', sizeIframe.bind(this, iframe)); // must be set every load
 
 	// Bind request events
 	// :TODO: can this go in .load() ? appears that it *cant*
@@ -176,24 +194,27 @@ Agent.prototype.render = function() {
 
 };
 
-function sizeIframe() {
-	this.height = null; // reset so we can get a fresh measurement
+// when called, must be bound to Agent instance
+function sizeIframe(iframe) {
+	iframe.height = null; // reset so we can get a fresh measurement
 
-	var oh = this.contentDocument.body.offsetHeight;
-	var sh = this.contentDocument.body.scrollHeight;
-	var w = this.contentDocument.body.scrollWidth;
+	var oh = iframe.contentDocument.body.offsetHeight;
+	var sh = iframe.contentDocument.body.scrollHeight;
+	var w = iframe.contentDocument.body.scrollWidth;
 	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
-	this.height = ((sh == 150) ? oh : sh) + 'px';
-	this.width = ((w < 800) ? w : 800) + 'px';
+	iframe.height = ((sh == 150) ? oh : sh) + 'px';
+	iframe.width = ((w < 800) ? w : 800) + 'px';
+	this.element.querySelector('.props-menu').style.left = iframe.width;
 
 	// In 100ms, do it again - it seems styles aren't always in place
 	var self = this;
 	setTimeout(function() {
-		var oh = self.contentDocument.body.offsetHeight;
-		var sh = self.contentDocument.body.scrollHeight;
-		var w = self.contentDocument.body.scrollWidth;
-		self.height = ((sh == 150) ? oh : sh) + 'px';
-		self.width = ((w < 800) ? w : 800) + 'px';
+		var oh = iframe.contentDocument.body.offsetHeight;
+		var sh = iframe.contentDocument.body.scrollHeight;
+		var w = iframe.contentDocument.body.scrollWidth;
+		iframe.height = ((sh == 150) ? oh : sh) + 'px';
+		iframe.width = ((w < 800) ? w : 800) + 'px';
+		self.element.querySelector('.props-menu').style.left = iframe.width;
 	}, 100);
 }
 
@@ -243,5 +264,9 @@ Agent.prototype.getBaseUrl = function(url) {
 	var basepath = urld.path.slice(0, urld.path.lastIndexOf('/'));
 	return urld.protocol + '://' + urld.authority + basepath + '/';
 };
+
+function prepLink(link) {
+	link.rel = link.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
+}
 
 module.exports = Agent;
