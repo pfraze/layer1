@@ -20,6 +20,7 @@ function Agent(opts) {
 	this.isResolved = false;
 	this.isBroken = false;
 	this.links = [];
+	this.selfLink = null;
 	if (this.parentAgent) {
 		this.position.copy(this.parentAgent.position);
 		this.position.x += 500;
@@ -38,6 +39,7 @@ Agent.prototype.setup = function() {
 	if (this.lastResponse) {
 		this.setResolved(true);
 		this.links = this.lastResponse.parsedHeaders.link;
+		this.selfLink = local.queryLinks(this.links, {rel:'self'})[0];
 		this.render();
 	} else {
 		this.fetch();
@@ -50,6 +52,7 @@ Agent.prototype.destroy = function() {
 
 Agent.prototype.getTitle = function() {
 	var title = this.url;
+	if (this.selfLink && this.selfLink.title) { title = this.selfLink.title; }
 	if (this.isBroken) { title += ' [broken: '+this.lastResponse.status+' '+this.lastResponse.reason+']'; }
 	else if (!this.isResolved) { title += ' [loading...]'; }
 	return util.escapeHTML(title);
@@ -62,12 +65,15 @@ Agent.prototype.fetch = function() {
 			self.lastResponse = res;
 			self.setResolved(true);
 			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
 			self.render();
 			return res;
 		})
 		.fail(function(res) {
 			self.lastResponse = res;
 			self.setBroken(true);
+			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
 			self.render();
 			throw res;
 		});
