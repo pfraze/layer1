@@ -45,6 +45,20 @@ World.prototype.spawn = function(opts) {
 	return agent;
 };
 
+World.prototype.kill = function(agentOrId) {
+	if (agentOrId && !(agentOrId instanceof Agent)) {
+		agentOrId = this.getAgent(agentOrId);
+	}
+	var agent = agentOrId;
+	if (!agent) {
+		return false;
+	}
+	agent.destroy();
+	this.scene.remove(agent);
+	delete this.agents[agent.id];
+	return agent;
+};
+
 World.prototype.select = function(agent) {
 	// clear current selection
 	if (this.selectedAgent) {

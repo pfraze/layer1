@@ -1,5 +1,59 @@
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 var util = require('./util');
+var esc = util.escapeHTML;
+
+function AgentServer(opts) {
+	local.Server.call(this, opts);
+}
+AgentServer.prototype = Object.create(local.Server.prototype);
+module.exports = AgentServer;
+
+AgentServer.prototype.handleLocalRequest = function(req, res) {
+	if (req.path == '/') {
+		this.root(req, res);
+	} else {
+		var agentId = req.path.slice(1);
+		var agent = world.getAgent(agentId);
+		if (!agent) { return res.writeHead(404).end(); }
+		this.agent(req, res, agent);
+	}
+};
+
+AgentServer.prototype.root = function(req, res) {
+	if (req.method == 'GET') {
+		this.rootGET(req, res);
+	} else {
+		res.writeHead(405, 'Bad Method').end();
+	}
+};
+
+AgentServer.prototype.rootGET = function(req, res) {
+	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+	res.end(this.rootRenderHTML());
+};
+
+AgentServer.prototype.rootRenderHTML = function(formMsg) {
+	return 'todo';
+};
+
+AgentServer.prototype.agent = function(req, res, agent) {
+	if (req.method == 'DELETE') {
+		this.agentDELETE(req, res, agent);
+	} else {
+		res.writeHead(405, 'Bad Method').end();
+	}
+};
+
+AgentServer.prototype.agentDELETE = function(req, res, agent) {
+	if (world.kill(agent)) {
+		res.writeHead(307, 'Ok, Redirect to Null').end();
+	} else {
+		res.writeHead(404, 'Not Found').end();
+	}
+
+};
+},{"./util":6}],2:[function(require,module,exports){
+var util = require('./util');
 
 function Agent(opts) {
 	// setup options
@@ -36,7 +90,17 @@ Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
 Agent.prototype.setup = function() {
 	if (!this.url) { throw "Agent must have a url to be set up"; }
-	this.fetch();
+	if (this.lastResponse) {
+		this.setResolved(true);
+		this.links = this.lastResponse.parsedHeaders.link;
+		this.render();
+	} else {
+		this.fetch();
+	}
+};
+
+Agent.prototype.destroy = function() {
+
 };
 
 Agent.prototype.getTitle = function() {
@@ -48,21 +112,20 @@ Agent.prototype.getTitle = function() {
 
 Agent.prototype.fetch = function() {
 	var self = this;
-	return util.fetch(this.url).then(
-		function(res) {
+	return util.fetch(this.url)
+		.then(function(res) {
 			self.lastResponse = res;
 			self.setResolved(true);
 			self.links = res.parsedHeaders.link;
 			self.render();
 			return res;
-		},
-		function(res) {
+		})
+		.fail(function(res) {
 			self.lastResponse = res;
 			self.setBroken(true);
 			self.render();
 			throw res;
-		}
-	);
+		});
 };
 
 Agent.prototype.dispatch = function(req) {
@@ -89,6 +152,9 @@ Agent.prototype.dispatch = function(req) {
 			self.lastResponse = res;
 			self.render();
 		} else {
+			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
+				return; // dont spawn
+			}
 			// spawn sub
 			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
 		}
@@ -228,7 +294,7 @@ Agent.prototype.getBaseUrl = function(url) {
 };
 
 module.exports = Agent;
-},{"./util":5}],2:[function(require,module,exports){
+},{"./util":6}],3:[function(require,module,exports){
 /**
  * Based on TrackballControls.js
  * @author Paul Frazee
@@ -612,7 +678,7 @@ function setIframePointerEvents(v) {
 }
 
 module.exports = CameraControls;
-},{}],3:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 var util = require('./util');
 var esc = util.escapeHTML;
 
@@ -716,10 +782,11 @@ CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	html += '</div>';
 	return html;
 };
-},{"./util":5}],4:[function(require,module,exports){
+},{"./util":6}],5:[function(require,module,exports){
 var World = require('./world');
 var CameraControls = require('./camera-controls');
 var CfgServer = require('./cfg-server');
+var AgentServer = require('./agent-server');
 
 // global state & behaviors
 window.world = new World(); // a whole new woooooorld
@@ -732,6 +799,8 @@ function setup() {
 	// setup local
 	local.logAllExceptions = true;
 	local.schemes.register('local', local.schemes.get('httpl')); // use local://
+
+	// log all traffic
 	local.setDispatchWrapper(function(req, res, dispatch) {
 		var res_ = dispatch(req, res);
 		res_.then(
@@ -740,8 +809,19 @@ function setup() {
 		);
 	});
 
+	// request events
+	try { local.bindRequestEvents(document.body); }
+	catch (e) { console.error('Failed to bind body request events.', e); }
+	document.body.addEventListener('request', function(e) {
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (!agentEl) throw "Request originated from outside of an agent in the world";
+		agent = world.getAgent(agentEl);
+		agent.dispatch(e.detail);
+	});
+
 	// setup services
 	local.addServer('config', new CfgServer());
+	local.addServer('agents', new AgentServer());
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
@@ -787,7 +867,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./camera-controls":2,"./cfg-server":3,"./world":6}],5:[function(require,module,exports){
+},{"./agent-server":1,"./camera-controls":3,"./cfg-server":4,"./world":7}],6:[function(require,module,exports){
 var lbracket_regex = /</g;
 var rbracket_regex = />/g;
 function escapeHTML(str) {
@@ -905,7 +985,7 @@ module.exports = {
 	fetch: fetch,
 	fetchMeta: function(url) { return fetch(url, true); }
 };
-},{}],6:[function(require,module,exports){
+},{}],7:[function(require,module,exports){
 var Agent = require('./agent');
 var WORLD_SIZE = 5000;
 
@@ -953,6 +1033,20 @@ World.prototype.spawn = function(opts) {
 	return agent;
 };
 
+World.prototype.kill = function(agentOrId) {
+	if (agentOrId && !(agentOrId instanceof Agent)) {
+		agentOrId = this.getAgent(agentOrId);
+	}
+	var agent = agentOrId;
+	if (!agent) {
+		return false;
+	}
+	agent.destroy();
+	this.scene.remove(agent);
+	delete this.agents[agent.id];
+	return agent;
+};
+
 World.prototype.select = function(agent) {
 	// clear current selection
 	if (this.selectedAgent) {
@@ -990,5 +1084,5 @@ function contextmenuHandler(e) {
 		this.getSelection().moveTo(worldPos);
 	}
 }
-},{"./agent":1}]},{},[4])
+},{"./agent":2}]},{},[5])
 ;

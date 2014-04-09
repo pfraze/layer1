@@ -1,6 +1,7 @@
 var World = require('./world');
 var CameraControls = require('./camera-controls');
 var CfgServer = require('./cfg-server');
+var AgentServer = require('./agent-server');
 
 // global state & behaviors
 window.world = new World(); // a whole new woooooorld
@@ -13,6 +14,8 @@ function setup() {
 	// setup local
 	local.logAllExceptions = true;
 	local.schemes.register('local', local.schemes.get('httpl')); // use local://
+
+	// log all traffic
 	local.setDispatchWrapper(function(req, res, dispatch) {
 		var res_ = dispatch(req, res);
 		res_.then(
@@ -21,8 +24,19 @@ function setup() {
 		);
 	});
 
+	// request events
+	try { local.bindRequestEvents(document.body); }
+	catch (e) { console.error('Failed to bind body request events.', e); }
+	document.body.addEventListener('request', function(e) {
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (!agentEl) throw "Request originated from outside of an agent in the world";
+		agent = world.getAgent(agentEl);
+		agent.dispatch(e.detail);
+	});
+
 	// setup services
 	local.addServer('config', new CfgServer());
+	local.addServer('agents', new AgentServer());
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);

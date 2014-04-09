@@ -35,7 +35,17 @@ Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
 Agent.prototype.setup = function() {
 	if (!this.url) { throw "Agent must have a url to be set up"; }
-	this.fetch();
+	if (this.lastResponse) {
+		this.setResolved(true);
+		this.links = this.lastResponse.parsedHeaders.link;
+		this.render();
+	} else {
+		this.fetch();
+	}
+};
+
+Agent.prototype.destroy = function() {
+
 };
 
 Agent.prototype.getTitle = function() {
@@ -47,21 +57,20 @@ Agent.prototype.getTitle = function() {
 
 Agent.prototype.fetch = function() {
 	var self = this;
-	return util.fetch(this.url).then(
-		function(res) {
+	return util.fetch(this.url)
+		.then(function(res) {
 			self.lastResponse = res;
 			self.setResolved(true);
 			self.links = res.parsedHeaders.link;
 			self.render();
 			return res;
-		},
-		function(res) {
+		})
+		.fail(function(res) {
 			self.lastResponse = res;
 			self.setBroken(true);
 			self.render();
 			throw res;
-		}
-	);
+		});
 };
 
 Agent.prototype.dispatch = function(req) {
@@ -88,6 +97,9 @@ Agent.prototype.dispatch = function(req) {
 			self.lastResponse = res;
 			self.render();
 		} else {
+			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
+				return; // dont spawn
+			}
 			// spawn sub
 			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
 		}
