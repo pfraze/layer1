@@ -35,8 +35,12 @@ CfgServer.prototype.handleLocalRequest = function(req, res) {
 };
 
 CfgServer.prototype.root = function(req, res) {
+	var type = local.preferredType(req, ['text/html', 'application/json']);
+	if (!type) { return res.writeHead(406).end(); }
+
 	res.header('Link', [{ href: '/', rel: 'self service', title: 'Program Loader' }]);
-	res.header('Content-Type', 'text/html');
+	res.header('Content-Type', type);
+
 	/**/ if (req.method == 'HEAD') { res.writeHead(204).end(); }
 	else if (req.method == 'GET')  { this.rootGET(req, res); }
 	else if (req.method == 'POST') { this.rootPOST(req, res); }
@@ -45,7 +49,7 @@ CfgServer.prototype.root = function(req, res) {
 
 CfgServer.prototype.rootGET = function(req, res) {
 	res.writeHead(200, 'OK');
-	res.end(this.rootRenderHTML());
+	this.rootRender(req, res);
 };
 
 CfgServer.prototype.rootPOST = function(req, res) {
@@ -53,7 +57,7 @@ CfgServer.prototype.rootPOST = function(req, res) {
 	req.on('end', function() {
 		if (!req.body || !req.body.url) {
 			res.writeHead(422, 'Bad Ent');
-			res.end(self.rootRenderHTML('<p class="text-danger">URL is required</p>'));
+			self.rootRender(req, res, 'URL is required');
 			return;
 		}
 
@@ -64,14 +68,13 @@ CfgServer.prototype.rootPOST = function(req, res) {
 		util.fetchMeta(req.body.url)
 			.fail(function(res2) {
 				var resReason = 'Got from upstream: '+esc(res2.status)+' '+esc(res2.reason||'');
-				var resSummary = '<p>Error: '+esc(res2.status)+' '+esc(res2.reason||'');
+				var resSummary = 'Error: '+esc(res2.status)+' '+esc(res2.reason||'');
 				if (!res2.status) {
 					resSummary += ' (Does not exist or not allowed to access.)';
 				}
-				resSummary += '</p>';
 
 				res.writeHead(502, resReason);
-				res.end(self.rootRenderHTML(resSummary));
+				self.rootRender(req, res, resSummary);
 			})
 			.then(function(res2) {
 				var agentLink = local.queryLinks(res2, { rel: 'self todorel.com/agent' })[0];
@@ -88,13 +91,29 @@ CfgServer.prototype.rootPOST = function(req, res) {
 					self.services.push(serviceLink);
 				}
 
-				res.writeHead(200, 'OK');
-				res.end(self.rootRenderHTML());
+				if (res.header('Content-Type') == 'application/json') {
+					res.writeHead(204, 'Ok no content').end();
+				} else {
+					res.writeHead(200, 'OK');
+					self.rootRender(req, res);
+				}
 			});
 	});
 };
 
-CfgServer.prototype.rootRenderHTML = function(formMsg) {
+CfgServer.prototype.rootRender = function(req, res, formMsg) {
+	if (res.header('Content-Type') == 'application/json') {
+		if (formMsg) {
+			res.end({ error: formMsg });
+		} else {
+			res.end({
+				agents: this.agents,
+				services: this.services
+			});
+		}
+		return;
+	}
+
 	var html = '';
 	html += '<div style="margin: 5px">';
 
@@ -122,10 +141,10 @@ CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	html +=     '<label class="sr-only" for="url">URL</label>';
 	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
-	if (formMsg) html += formMsg;
+	if (formMsg) html += '<p class="text-danger">'+formMsg+'</p>';
 	html +=   '<button type="submit" class="btn btn-primary">Add</button>';
 	html += '</form>';
 
 	html += '</div>';
-	return html;
+	res.end(html);
 };

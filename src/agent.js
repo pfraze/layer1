@@ -32,9 +32,6 @@ function Agent(opts) {
 		'<div class="props-menu"></div>',
 		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
 	].join('');
-	if (this.lastResponse) {
-		local.util.nextTick(this.render.bind(this));
-	}
 }
 Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
@@ -64,12 +61,14 @@ Agent.prototype.getTitle = function() {
 };
 
 Agent.prototype.getPropsMenu = function() {
-	if (!this.selfLink) { return ''; }
+	var sl = this.selfLink;
+	if (!sl) { return ''; }
 	var html = '';
-	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
+	if (sl.rel) { html += '<p>'+sl.rel+'</p>'; }
 	html += '<p>';
-	html += world.configServer.queryAgents([this.selfLink]).map(function(l) {
-		return '<a href="'+l.href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+	html += world.configServer.queryAgents([sl]).map(function(l) {
+		var href = local.UriTemplate.parse(l.href).expand({ target: sl.href });
+		return '<a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
 	}).join('');
 	html += '</p>';
 	return html;
@@ -161,6 +160,9 @@ Agent.prototype.render = function() {
 		this.getPropsMenu()
 	].join('');
 
+	if (!this.lastResponse) {
+		return;
+	}
 
 	// prep response body
 	var body = (this.lastResponse) ? this.lastResponse.body : '';
@@ -190,23 +192,24 @@ Agent.prototype.render = function() {
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
 	var redirHandler = iframeMouseEventRedispatcher.bind(this);
-	var bindPoller = setInterval(function() {
+	function tryEventBinding() {
 		try {
-			local.bindRequestEvents(iframe.contentDocument.body);
-			iframe.contentDocument.body.addEventListener('request', reqHandler);
+			local.bindRequestEvents(iframe.contentDocument);
+			iframe.contentDocument.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', redirHandler);
 			iframe.contentDocument.addEventListener('dblclick', redirHandler);
 			iframe.contentDocument.addEventListener('mousedown', redirHandler);
 			iframe.contentDocument.addEventListener('mouseup', redirHandler);
-			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
 			if (attempts > 100) {
 				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
-				clearInterval(bindPoller);
+			} else {
+				// setTimeout(tryEventBinding, 50); // try again
 			}
 		}
-	}, 50); // wait 50 ms for the page to setup
+	}
+	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
 
 };
 

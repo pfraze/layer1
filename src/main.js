@@ -1,5 +1,6 @@
 var World = require('./world');
 var CameraControls = require('./camera-controls');
+var WorkerProxy = require('./worker-proxy');
 var CfgServer = require('./cfg-server');
 var AgentServer = require('./agent-server');
 
@@ -36,6 +37,7 @@ function setup() {
 
 	// setup services
 	var configServer = new CfgServer({ domain: 'config' });
+	local.addServer('worker-bridge', new WorkerProxy());
 	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 

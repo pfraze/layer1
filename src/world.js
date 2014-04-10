@@ -32,7 +32,7 @@ World.prototype.setup = function(scene, configServer) {
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	var cfgagent = this.spawn({ url: 'local://config' });
-	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/extractor.js)/'} });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/mimepipe.js)/'} });
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 

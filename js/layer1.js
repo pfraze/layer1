@@ -87,9 +87,6 @@ function Agent(opts) {
 		'<div class="props-menu"></div>',
 		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
 	].join('');
-	if (this.lastResponse) {
-		local.util.nextTick(this.render.bind(this));
-	}
 }
 Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
 
@@ -119,12 +116,14 @@ Agent.prototype.getTitle = function() {
 };
 
 Agent.prototype.getPropsMenu = function() {
-	if (!this.selfLink) { return ''; }
+	var sl = this.selfLink;
+	if (!sl) { return ''; }
 	var html = '';
-	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
+	if (sl.rel) { html += '<p>'+sl.rel+'</p>'; }
 	html += '<p>';
-	html += world.configServer.queryAgents([this.selfLink]).map(function(l) {
-		return '<a href="'+l.href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+	html += world.configServer.queryAgents([sl]).map(function(l) {
+		var href = local.UriTemplate.parse(l.href).expand({ target: sl.href });
+		return '<a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
 	}).join('');
 	html += '</p>';
 	return html;
@@ -216,6 +215,9 @@ Agent.prototype.render = function() {
 		this.getPropsMenu()
 	].join('');
 
+	if (!this.lastResponse) {
+		return;
+	}
 
 	// prep response body
 	var body = (this.lastResponse) ? this.lastResponse.body : '';
@@ -245,23 +247,24 @@ Agent.prototype.render = function() {
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
 	var redirHandler = iframeMouseEventRedispatcher.bind(this);
-	var bindPoller = setInterval(function() {
+	function tryEventBinding() {
 		try {
-			local.bindRequestEvents(iframe.contentDocument.body);
-			iframe.contentDocument.body.addEventListener('request', reqHandler);
+			local.bindRequestEvents(iframe.contentDocument);
+			iframe.contentDocument.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', redirHandler);
 			iframe.contentDocument.addEventListener('dblclick', redirHandler);
 			iframe.contentDocument.addEventListener('mousedown', redirHandler);
 			iframe.contentDocument.addEventListener('mouseup', redirHandler);
-			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
 			if (attempts > 100) {
 				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
-				clearInterval(bindPoller);
+			} else {
+				// setTimeout(tryEventBinding, 50); // try again
 			}
 		}
-	}, 50); // wait 50 ms for the page to setup
+	}
+	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
 
 };
 
@@ -807,8 +810,12 @@ CfgServer.prototype.handleLocalRequest = function(req, res) {
 };
 
 CfgServer.prototype.root = function(req, res) {
+	var type = local.preferredType(req, ['text/html', 'application/json']);
+	if (!type) { return res.writeHead(406).end(); }
+
 	res.header('Link', [{ href: '/', rel: 'self service', title: 'Program Loader' }]);
-	res.header('Content-Type', 'text/html');
+	res.header('Content-Type', type);
+
 	/**/ if (req.method == 'HEAD') { res.writeHead(204).end(); }
 	else if (req.method == 'GET')  { this.rootGET(req, res); }
 	else if (req.method == 'POST') { this.rootPOST(req, res); }
@@ -817,7 +824,7 @@ CfgServer.prototype.root = function(req, res) {
 
 CfgServer.prototype.rootGET = function(req, res) {
 	res.writeHead(200, 'OK');
-	res.end(this.rootRenderHTML());
+	this.rootRender(req, res);
 };
 
 CfgServer.prototype.rootPOST = function(req, res) {
@@ -825,7 +832,7 @@ CfgServer.prototype.rootPOST = function(req, res) {
 	req.on('end', function() {
 		if (!req.body || !req.body.url) {
 			res.writeHead(422, 'Bad Ent');
-			res.end(self.rootRenderHTML('<p class="text-danger">URL is required</p>'));
+			self.rootRender(req, res, 'URL is required');
 			return;
 		}
 
@@ -836,14 +843,13 @@ CfgServer.prototype.rootPOST = function(req, res) {
 		util.fetchMeta(req.body.url)
 			.fail(function(res2) {
 				var resReason = 'Got from upstream: '+esc(res2.status)+' '+esc(res2.reason||'');
-				var resSummary = '<p>Error: '+esc(res2.status)+' '+esc(res2.reason||'');
+				var resSummary = 'Error: '+esc(res2.status)+' '+esc(res2.reason||'');
 				if (!res2.status) {
 					resSummary += ' (Does not exist or not allowed to access.)';
 				}
-				resSummary += '</p>';
 
 				res.writeHead(502, resReason);
-				res.end(self.rootRenderHTML(resSummary));
+				self.rootRender(req, res, resSummary);
 			})
 			.then(function(res2) {
 				var agentLink = local.queryLinks(res2, { rel: 'self todorel.com/agent' })[0];
@@ -860,13 +866,29 @@ CfgServer.prototype.rootPOST = function(req, res) {
 					self.services.push(serviceLink);
 				}
 
-				res.writeHead(200, 'OK');
-				res.end(self.rootRenderHTML());
+				if (res.header('Content-Type') == 'application/json') {
+					res.writeHead(204, 'Ok no content').end();
+				} else {
+					res.writeHead(200, 'OK');
+					self.rootRender(req, res);
+				}
 			});
 	});
 };
 
-CfgServer.prototype.rootRenderHTML = function(formMsg) {
+CfgServer.prototype.rootRender = function(req, res, formMsg) {
+	if (res.header('Content-Type') == 'application/json') {
+		if (formMsg) {
+			res.end({ error: formMsg });
+		} else {
+			res.end({
+				agents: this.agents,
+				services: this.services
+			});
+		}
+		return;
+	}
+
 	var html = '';
 	html += '<div style="margin: 5px">';
 
@@ -894,16 +916,17 @@ CfgServer.prototype.rootRenderHTML = function(formMsg) {
 	html +=     '<label class="sr-only" for="url">URL</label>';
 	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
-	if (formMsg) html += formMsg;
+	if (formMsg) html += '<p class="text-danger">'+formMsg+'</p>';
 	html +=   '<button type="submit" class="btn btn-primary">Add</button>';
 	html += '</form>';
 
 	html += '</div>';
-	return html;
+	res.end(html);
 };
 },{"./util":6}],5:[function(require,module,exports){
 var World = require('./world');
 var CameraControls = require('./camera-controls');
+var WorkerProxy = require('./worker-proxy');
 var CfgServer = require('./cfg-server');
 var AgentServer = require('./agent-server');
 
@@ -940,6 +963,7 @@ function setup() {
 
 	// setup services
 	var configServer = new CfgServer({ domain: 'config' });
+	local.addServer('worker-bridge', new WorkerProxy());
 	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 
@@ -987,7 +1011,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./agent-server":1,"./camera-controls":3,"./cfg-server":4,"./world":7}],6:[function(require,module,exports){
+},{"./agent-server":1,"./camera-controls":3,"./cfg-server":4,"./worker-proxy":7,"./world":8}],6:[function(require,module,exports){
 var lbracket_regex = /</g;
 var rbracket_regex = />/g;
 function escapeHTML(str) {
@@ -1106,6 +1130,81 @@ module.exports = {
 	fetchMeta: function(url) { return fetch(url, true); }
 };
 },{}],7:[function(require,module,exports){
+var util = require('./util');
+
+function WorkerProxy(opts) {
+	local.Server.call(this, opts);
+}
+WorkerProxy.prototype = Object.create(local.Server.prototype);
+module.exports = WorkerProxy;
+
+WorkerProxy.prototype.handleLocalRequest = function(req, res, worker) {
+	if (req.path == '/') {
+		this.root(req, res, worker);
+	} else {
+		this.proxy(req, res, worker);
+	}
+};
+
+WorkerProxy.prototype.root = function(req, res, worker) {
+	var via = [{proto: {version:'1.0', name:'HTTPL'}, hostname: req.header('Host')}];
+
+	var links = [];
+	links.unshift({ href: '/', rel: 'self service via', title: 'Host Page', noproxy: true });
+	links.push({ href: '/{uri}', rel: 'service', hidden: true });
+
+	// :TODO: add hosts
+
+	// Respond
+	res.setHeader('Link', links);
+	res.setHeader('Via', via);
+	res.header('Proxy-Tmpl', 'httpl://host.page/{uri}');
+	res.writeHead(204).end();
+};
+
+WorkerProxy.prototype.proxy = function(req, res, worker) {
+	var via = [{proto: {version:'1.0', name:'HTTPL'}, hostname: req.header('Host')}];
+
+	// Proxy the request through
+	var req2 = new local.Request({
+		method: req.method,
+		url: decodeURIComponent(req.path.slice(1)),
+		query: local.util.deepClone(req.query),
+		headers: local.util.deepClone(req.headers),
+		stream: true
+	});
+
+	// Check perms
+	// :DEBUG: temporary, simple no external
+	var urld = local.parseUri(req2.url);
+	if (urld.protocol == 'http' || urld.protocol == 'https') {
+		res.writeHead(403, 'Forbidden', { 'Content-Type': 'text/plain' });
+		res.end('External requests currently disabled.');
+		return;
+	}
+
+	// Set headers
+	req2.header('From', 'local://'+worker.config.domain);
+	req2.header('Via', (req.parsedHeaders.via||[]).concat(via));
+
+	console.log('proxy request out');
+	var res2_ = local.dispatch(req2);
+	res2_.always(function(res2) {
+		// Set headers
+		res2.header('Link', res2.parsedHeaders.link); // use parsed headers, since they'll all be absolute now
+		res2.header('Via', via.concat(res2.parsedHeaders.via||[]));
+		res2.header('Proxy-Tmpl', ((res2.header('Proxy-Tmpl')||'')+' local://host.page/{uri}').trim());
+
+		// Pipe back
+		res.writeHead(res2.status, res2.reason, res2.headers);
+		res2.on('data', function(chunk) { res.write(chunk); });
+		res2.on('end', function() { res.end(); });
+		res2.on('close', function() { res.close(); });
+	});
+	req.on('data', function(chunk) { req2.write(chunk); });
+	req.on('end', function() { req2.end(); });
+};
+},{"./util":6}],8:[function(require,module,exports){
 var Agent = require('./agent');
 var WORLD_SIZE = 5000;
 
@@ -1140,7 +1239,7 @@ World.prototype.setup = function(scene, configServer) {
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	var cfgagent = this.spawn({ url: 'local://config' });
-	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/extractor.js)/'} });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/mimepipe.js)/'} });
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 
