@@ -127,6 +127,26 @@ var CameraControls = function ( object, domElement ) {
 		});
 	})();
 
+	// given an event, fills the dest vector with the position in the world
+	this.getSizeInWorld = (function() {
+		var projector = new THREE.Projector();
+		return (function(width, height, destVector) {
+			var vector = new THREE.Vector3(
+				(width / window.innerWidth) * 2,
+				-(height / window.innerHeight) * 2,
+				0
+			);
+
+			projector.unprojectVector( vector, camera );
+			var dir = vector.sub( camera.position ).normalize();
+
+			var distance = - camera.position.z / dir.z;
+
+			destVector.set(0,0,0);//copy(camera.position);
+			destVector.add(dir.multiplyScalar(distance));
+		});
+	})();
+
 	this.zoomCamera = function () {
 
 		var factor = 1.0 + ( _zoomEnd.y - _zoomStart.y ) * _this.zoomSpeed;

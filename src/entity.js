@@ -24,6 +24,7 @@ function Entity(opts) {
 	if (this.parentEntity) {
 		this.position.copy(this.parentEntity.position);
 		this.position.x += 500;
+		this.moveTo(this.parentEntity);
 	}
 
 	// visual
@@ -37,6 +38,8 @@ Entity.prototype = Object.create(THREE.CSS3DObject.prototype);
 
 Entity.prototype.setup = function() {
 	if (!this.url) { throw "Entity must have a url to be set up"; }
+
+	// load content
 	if (this.lastResponse) {
 		this.setResolved(true);
 		this.links = this.lastResponse.parsedHeaders.link;
@@ -149,6 +152,17 @@ Entity.prototype.dispatch = function(req) {
 };
 
 Entity.prototype.moveTo = function(dest) {
+	if (dest instanceof Entity) {
+		var destEnt = dest;
+		dest = destEnt.position.clone();
+
+		var rect = destEnt.element.getClientRects()[0];
+		var vec = new THREE.Vector3();
+		cameraControls.getSizeInWorld(rect.width, rect.height, vec);
+		console.log(rect.width, vec.x);
+		dest.x += vec.x + 50;
+	}
+
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
 		.to({ x: dest.x, y: dest.y }, 200)
