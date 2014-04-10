@@ -1307,6 +1307,12 @@ World.prototype.kill = function(entOrId) {
 };
 
 World.prototype.select = function(entity) {
+	// clear attackable classes
+	var attackables = document.querySelectorAll('.ent.attackable');
+	for (var i=0; i < attackables.length; i++) {
+		attackables[i].classList.remove('attackable');
+	}
+
 	// clear current selection
 	if (this.selectedEntity) {
 		this.selectedEntity.setSelected(false);
@@ -1316,6 +1322,17 @@ World.prototype.select = function(entity) {
 	this.selectedEntity = entity;
 	if (entity) {
 		entity.setSelected(true);
+
+		if (entity.isAgent()) {
+			var query = { rel: entity.selfLink['query-rel'] };
+			// highlight attackable ents
+			for (var id in this.entities) {
+				var target = this.entities[id];
+				if (target.selfLink && local.queryLink(target.selfLink, query)) {
+					target.element.classList.add('attackable');
+				}
+			}
+		}
 	}
 };
 

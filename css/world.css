@@ -4,7 +4,8 @@ body { margin: 0; font-family: consolas;}
 .ent { background: white; border: 3px solid black ;}
 .ent:not(.resolved) { border: 3px dashed green; }
 .ent.broken { border: 3px dashed red; }
-.ent.selected { border: 3px solid #3276b1; z-index: 1; }
+.ent.selected { border: 3px solid #428bca; z-index: 1; }
+.ent.attackable { border: 3px solid #CE8F36; z-index: 1; cursor: crosshair; }
 
 .ent .title { background: #ccc; padding: 5px 10px; }
 .ent .props-menu { display:none; z-index: 2; background: #fff; border: 1px solid black; position: absolute; top: -3px; margin-left: 10px; padding: 5px 10px; white-space: pre; }
