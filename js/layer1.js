@@ -1428,6 +1428,8 @@ function contextmenuHandler(e) {
 			// agent targetting another entity, of the right type?
 			var rel = agent.selfLink['query-rel'];
 			if (rel && local.queryLink(target.selfLink, { rel: rel })) {
+				// move agent to target
+				agent.moveTo(target);
 				// reload agent with this new target
 				agent.url = local.UriTemplate
 					.parse(agent.selfLink.href)
