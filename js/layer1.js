@@ -1301,6 +1301,9 @@ World.prototype.kill = function(entOrId) {
 		return false;
 	}
 	entity.destroy();
+	if (this.selectedEntity == entity) {
+		this.select(null);
+	}
 	this.scene.remove(entity);
 	delete this.entities[entity.id];
 	return entity;
