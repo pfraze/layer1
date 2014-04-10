@@ -1,11 +1,6 @@
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('hello-world', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World', 'query-rel': 'service' }]);
-	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px">Hello, world</div>');
-});
-
 local.addServer('time', function(req, res) {
 	res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
 	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
@@ -16,14 +11,6 @@ function CfgServer(opts) {
 
 	this.agents = [];
 	this.services = [];
-
-	// :DEBUG:
-	this.agents.push({
-		href: 'local://hello-world',
-		rel: 'todorel.com/agent',
-		'query-rel': 'service',
-		title: 'Hello World'
-	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);
 module.exports = CfgServer;

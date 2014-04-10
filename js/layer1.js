@@ -158,9 +158,17 @@ Agent.prototype.dispatch = function(req) {
 	var target = req.target; // local.Request() will strip `target`
 	var body = req.body; delete req.body;
 
+	if (!req.url) { req.url = this.url; }
 	if (!req.headers) { req.headers = {}; }
 	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
 	req = (req instanceof local.Request) ? req : (new local.Request(req));
+	if (body !== null && body !== '' && typeof body != 'undefined' && !req.header('Content-Type')) {
+		if (typeof body == 'object') {
+			req.header('Content-Type', 'application/json');
+		} else {
+			req.header('Content-Type', 'text/plain');
+		}
+	}
 
 	// relative link? make absolute
 	if (!local.isAbsUri(req.url)) {
@@ -765,11 +773,6 @@ module.exports = CameraControls;
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('hello-world', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self todorel.com/agent', title: 'Hello World', 'query-rel': 'service' }]);
-	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px">Hello, world</div>');
-});
-
 local.addServer('time', function(req, res) {
 	res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
 	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
@@ -780,14 +783,6 @@ function CfgServer(opts) {
 
 	this.agents = [];
 	this.services = [];
-
-	// :DEBUG:
-	this.agents.push({
-		href: 'local://hello-world',
-		rel: 'todorel.com/agent',
-		'query-rel': 'service',
-		title: 'Hello World'
-	});
 }
 CfgServer.prototype = Object.create(local.Server.prototype);
 module.exports = CfgServer;
@@ -944,7 +939,7 @@ function setup() {
 	});
 
 	// setup services
-	var configServer = new CfgServer();
+	var configServer = new CfgServer({ domain: 'config' });
 	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 
@@ -1144,7 +1139,9 @@ World.prototype.setup = function(scene, configServer) {
 	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	this.spawn({ url: 'local://config' });
+	var cfgagent = this.spawn({ url: 'local://config' });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/extractor.js)/'} });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 
 World.prototype.getAgent = function(idOrEl) {

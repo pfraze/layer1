@@ -103,9 +103,17 @@ Agent.prototype.dispatch = function(req) {
 	var target = req.target; // local.Request() will strip `target`
 	var body = req.body; delete req.body;
 
+	if (!req.url) { req.url = this.url; }
 	if (!req.headers) { req.headers = {}; }
 	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
 	req = (req instanceof local.Request) ? req : (new local.Request(req));
+	if (body !== null && body !== '' && typeof body != 'undefined' && !req.header('Content-Type')) {
+		if (typeof body == 'object') {
+			req.header('Content-Type', 'application/json');
+		} else {
+			req.header('Content-Type', 'text/plain');
+		}
+	}
 
 	// relative link? make absolute
 	if (!local.isAbsUri(req.url)) {

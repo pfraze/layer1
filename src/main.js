@@ -35,7 +35,7 @@ function setup() {
 	});
 
 	// setup services
-	var configServer = new CfgServer();
+	var configServer = new CfgServer({ domain: 'config' });
 	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 

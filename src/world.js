@@ -31,7 +31,9 @@ World.prototype.setup = function(scene, configServer) {
 	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
-	this.spawn({ url: 'local://config' });
+	var cfgagent = this.spawn({ url: 'local://config' });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/extractor.js)/'} });
+	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 
 World.prototype.getAgent = function(idOrEl) {
