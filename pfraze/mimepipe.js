@@ -9,7 +9,7 @@ function main(req, res) {
 	var type = req.query.type;
 	if (!type || !mimes[type]) { req.query.type = type = 'json'; }
 
-	res.setHeader('link', [{ href: '/?type='+type+'{&target}', rel: 'self todorel.com/agent', title: 'Mimepipe', 'query-rel': 'service' }]);
+	res.setHeader('link', [{ href: '/?type='+type+'{&target}', rel: 'self todorel.com/agent', title: 'MIME Pipe', 'query-rel': 'service' }]);
 	res.writeHead(200, 'OK', {'Content-Type': 'text/html'});
 
 	if (req.query.target) {

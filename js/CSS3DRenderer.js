@@ -123,7 +123,7 @@ THREE.CSS3DRenderer = function () {
 
 		var elements = matrix.elements;
 
-		return 'translate3d(-50%,-50%,0) matrix3d(' +
+		return 'translate3d(0,-100%,0) matrix3d(' +
 			epsilon( elements[ 0 ] ) + ',' +
 			epsilon( elements[ 1 ] ) + ',' +
 			epsilon( elements[ 2 ] ) + ',' +

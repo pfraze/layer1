@@ -21,6 +21,8 @@ World.prototype.setup = function(scene, configServer) {
 	gridEl.style.width = WORLD_SIZE+'px';
 	gridEl.style.height = WORLD_SIZE+'px';
 	this.gridBg = new THREE.CSS3DObject(gridEl);
+	this.gridBg.position.x = -(WORLD_SIZE/2);
+	this.gridBg.position.y = (WORLD_SIZE/2);
 	this.gridBg.position.z = -10;
 	this.scene.add(this.gridBg);
 
