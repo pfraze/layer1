@@ -456,7 +456,7 @@ CfgServer.prototype.root = function(req, res) {
 	var type = local.preferredType(req, ['text/html', 'application/json']);
 	if (!type) { return res.writeHead(406).end(); }
 
-	res.header('Link', [{ href: '/', rel: 'self service', title: 'Program Loader' }]);
+	res.header('Link', [{ href: '/', rel: 'self service', title: 'Program Load' }]);
 	res.header('Content-Type', type);
 
 	/**/ if (req.method == 'HEAD') { res.writeHead(204).end(); }
@@ -532,26 +532,21 @@ CfgServer.prototype.rootRender = function(req, res, formMsg) {
 		return;
 	}
 
-	var html = '';
-	html += '<div style="margin: 5px">';
+	var html = '<style> p { font-size: 115%; margin: 4px 2px 16px } </style>';
+	html += '<style> .form-control { margin-bottom: 10px } </style>';
+	html += '<div style="margin: 10px 5px; min-width: 200px">';
 
 	// agents
-	html += '<table class="table"><tr><th style="min-width:200px">Agent</th><th style="min-width:100px">Target</th></tr>';
 	this.agents.forEach(function(agentLink) {
-		html += '<tr><td><a href="'+esc(agentLink.href)+'">'+esc(agentLink.title)+'</a></td>';
-		html += '<td>'+esc(agentLink['query-rel'])+'</td></tr>';
+		html += '<p><b class="glyphicon glyphicon-user" title="Agent"></b>';
+		html += ' <a href="'+esc(agentLink.href)+'">'+esc(agentLink.title)+'</a></p>';
 	});
-	html += '</table>';
-
-	html += '<br>';
 
 	// services
-	html += '<table class="table"><tr><th style="min-width:200px">Service</th><th style="min-width:100px">Type</th></tr>';
 	this.services.forEach(function(serviceLink) {
-		html += '<tr><td><a href="'+esc(serviceLink.href)+'">'+esc(serviceLink.title)+'</a></td>';
-		html += '<td>'+esc(serviceLink.rel)+'</td></tr>';
+		html += '<p><b class="glyphicon glyphicon-barcode" title="Service"></b>';
+		html += ' <a href="'+esc(serviceLink.href)+'">'+esc(serviceLink.title)+'</a></p>';
 	});
-	html += '</table>';
 
 	// form
 	html += '<form action="/" method="POST" class="form-inline">';
@@ -560,7 +555,9 @@ CfgServer.prototype.rootRender = function(req, res, formMsg) {
 	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
 	if (formMsg) html += '<p class="text-danger">'+formMsg+'</p>';
-	html +=   '<button type="submit" class="btn btn-primary">Add</button>';
+	html +=   '<div style="height: 30px">';
+	html +=     '<button type="submit" class="btn btn-primary pull-right">Add</button>';
+	html +=   '</div>';
 	html += '</form>';
 
 	html += '</div>';
