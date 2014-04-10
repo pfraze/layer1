@@ -1311,6 +1311,9 @@ World.prototype.select = function(entity) {
 	var attackables = document.querySelectorAll('.ent.attackable');
 	for (var i=0; i < attackables.length; i++) {
 		attackables[i].classList.remove('attackable');
+		try {
+			attackables[i].querySelector('iframe').contentDocument.body.style.cursor = null;
+		} catch(e) {}
 	}
 
 	// clear current selection
@@ -1330,6 +1333,9 @@ World.prototype.select = function(entity) {
 				var target = this.entities[id];
 				if (target.selfLink && local.queryLink(target.selfLink, query)) {
 					target.element.classList.add('attackable');
+					try {
+						target.element.querySelector('iframe').contentDocument.body.style.cursor = 'crosshair';
+					} catch(e) {}
 				}
 			}
 		}
