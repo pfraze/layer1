@@ -760,7 +760,7 @@ Entity.prototype.dispatch = function(req) {
 				return; // dont spawn
 			}
 			// spawn sub
-			world.spawn({ url: req.url, lastResponse: res, parentEntity: self });
+			world.spawn({ url: req.url, lastResponse: res, parentEntity: self }, { select: true });
 		}
 	});
 
@@ -1281,11 +1281,15 @@ World.prototype.getSelection = function() {
 	return this.selectedEntity;
 };
 
-World.prototype.spawn = function(opts) {
-	var entity = new Entity(opts);
+World.prototype.spawn = function(cfg, opts) {
+	opts = opts || {};
+	var entity = new Entity(cfg);
 	entity.setup();
 	this.entities[entity.id] = entity;
 	this.scene.add(entity);
+	if (opts.select) {
+		this.select(entity);
+	}
 	return entity;
 };
 
@@ -1356,12 +1360,9 @@ function clickHandler(e) {
 
 function dblclickHandler(e) {
 	if (e.which == 1) { // left mouse
-		// var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
-		// if (!entityEl) { // not in an entity (in world space)
-			var worldPos = new THREE.Vector3();
-			window.cameraControls.getMouseInWorld(e, worldPos);
-			cameraControls.centerAt(worldPos);
-		// }
+		var worldPos = new THREE.Vector3();
+		window.cameraControls.getMouseInWorld(e, worldPos);
+		cameraControls.centerAt(worldPos);
 	}
 }
 

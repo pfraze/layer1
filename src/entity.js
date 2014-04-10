@@ -140,7 +140,7 @@ Entity.prototype.dispatch = function(req) {
 				return; // dont spawn
 			}
 			// spawn sub
-			world.spawn({ url: req.url, lastResponse: res, parentEntity: self });
+			world.spawn({ url: req.url, lastResponse: res, parentEntity: self }, { select: true });
 		}
 	});
 

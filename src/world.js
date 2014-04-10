@@ -45,11 +45,15 @@ World.prototype.getSelection = function() {
 	return this.selectedEntity;
 };
 
-World.prototype.spawn = function(opts) {
-	var entity = new Entity(opts);
+World.prototype.spawn = function(cfg, opts) {
+	opts = opts || {};
+	var entity = new Entity(cfg);
 	entity.setup();
 	this.entities[entity.id] = entity;
 	this.scene.add(entity);
+	if (opts.select) {
+		this.select(entity);
+	}
 	return entity;
 };
 
