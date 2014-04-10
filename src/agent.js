@@ -67,6 +67,11 @@ Agent.prototype.getPropsMenu = function() {
 	if (!this.selfLink) { return ''; }
 	var html = '';
 	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
+	html += '<p>';
+	html += '<a href="local://time">realtime</a><br>';
+	html += '<a href="local://time">get json</a><br>';
+	html += '<a href="local://time">get text</a><br>';
+	html += '</p>';
 	return html;
 };
 
