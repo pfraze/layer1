@@ -148,7 +148,7 @@ function contextmenuHandler(e) {
 	e.stopPropagation();
 
 	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
-	if (entityEl) {
+	if (entityEl && entityEl != this.selectedEntity.element) {
 		// "attack"
 		var agent = this.selectedEntity;
 		var target = this.getEntity(entityEl);

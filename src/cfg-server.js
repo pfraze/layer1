@@ -111,7 +111,7 @@ CfgServer.prototype.rootRender = function(req, res, formMsg) {
 
 	var html = '<style> p { font-size: 115%; margin: 4px 2px 16px } </style>';
 	html += '<style> .form-control { margin-bottom: 10px } </style>';
-	html += '<div style="margin: 10px 5px; min-width: 200px">';
+	html += '<div style="padding: 10px 5px; min-width: 280px">';
 
 	// agents
 	this.agents.forEach(function(agentLink) {
@@ -131,9 +131,9 @@ CfgServer.prototype.rootRender = function(req, res, formMsg) {
 	html +=     '<label class="sr-only" for="url">URL</label>';
 	html +=     '<input type="text" name="url" placeholder="Enter URL" class="form-control">';
 	html +=   '</div>';
-	if (formMsg) html += '<p class="text-danger">'+formMsg+'</p>';
 	html +=   '<div style="height: 30px">';
 	html +=     '<button type="submit" class="btn btn-primary pull-right">Add</button>';
+	if (formMsg) html += '<p class="text-danger">'+formMsg+'</p>';
 	html +=   '</div>';
 	html += '</form>';
 
