@@ -1356,12 +1356,12 @@ function clickHandler(e) {
 
 function dblclickHandler(e) {
 	if (e.which == 1) { // left mouse
-		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
-		if (!entityEl) { // not in an entity (in world space)
+		// var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		// if (!entityEl) { // not in an entity (in world space)
 			var worldPos = new THREE.Vector3();
 			window.cameraControls.getMouseInWorld(e, worldPos);
 			cameraControls.centerAt(worldPos);
-		}
+		// }
 	}
 }
 
