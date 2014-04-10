@@ -28,6 +28,17 @@ function CfgServer(opts) {
 CfgServer.prototype = Object.create(local.Server.prototype);
 module.exports = CfgServer;
 
+CfgServer.prototype.queryAgents = function(searchLinks) {
+	return this.agents.filter(function(agentLink) {
+		var rel = agentLink['query-rel'];
+		if (!rel) return;
+		if (local.queryLinks(searchLinks, { rel: rel })[0]) {
+			return true;
+		}
+		return false;
+	});
+};
+
 CfgServer.prototype.handleLocalRequest = function(req, res) {
 	if (req.path == '/') {
 		this.root(req, res);

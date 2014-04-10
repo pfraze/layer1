@@ -123,9 +123,9 @@ Agent.prototype.getPropsMenu = function() {
 	var html = '';
 	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
 	html += '<p>';
-	html += '<a href="local://time">realtime</a><br>';
-	html += '<a href="local://time">get json</a><br>';
-	html += '<a href="local://time">get text</a><br>';
+	html += world.configServer.queryAgents([this.selfLink]).map(function(l) {
+		return '<a href="'+l.href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+	}).join('');
 	html += '</p>';
 	return html;
 };
@@ -236,14 +236,15 @@ Agent.prototype.render = function() {
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
-	var clickHandler = iframeMouseEventRedispatcher.bind(this);
-	var dblclickHandler = iframeMouseEventRedispatcher.bind(this);
+	var redirHandler = iframeMouseEventRedispatcher.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', reqHandler);
-			iframe.contentDocument.addEventListener('click', clickHandler);
-			iframe.contentDocument.addEventListener('dblclick', dblclickHandler);
+			iframe.contentDocument.addEventListener('click', redirHandler);
+			iframe.contentDocument.addEventListener('dblclick', redirHandler);
+			iframe.contentDocument.addEventListener('mousedown', redirHandler);
+			iframe.contentDocument.addEventListener('mouseup', redirHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -285,7 +286,13 @@ function iframeRequestEventHandler(e) {
 }
 
 function iframeMouseEventRedispatcher(e) {
-	this.element.dispatchEvent(new MouseEvent(e.type, e));
+	var newEvent = {};
+	for (var k in e) { newEvent[k] = e[k]; }
+	var rect = this.element.getClientRects()[0];
+
+	newEvent.clientX = rect.left + e.clientX;
+	newEvent.clientY = rect.top + e.clientY;
+	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
 }
 
 Agent.prototype.setSelected = function(v) {
@@ -785,6 +792,17 @@ function CfgServer(opts) {
 CfgServer.prototype = Object.create(local.Server.prototype);
 module.exports = CfgServer;
 
+CfgServer.prototype.queryAgents = function(searchLinks) {
+	return this.agents.filter(function(agentLink) {
+		var rel = agentLink['query-rel'];
+		if (!rel) return;
+		if (local.queryLinks(searchLinks, { rel: rel })[0]) {
+			return true;
+		}
+		return false;
+	});
+};
+
 CfgServer.prototype.handleLocalRequest = function(req, res) {
 	if (req.path == '/') {
 		this.root(req, res);
@@ -926,7 +944,8 @@ function setup() {
 	});
 
 	// setup services
-	local.addServer('config', new CfgServer());
+	var configServer = new CfgServer();
+	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 
 	// setup camera
@@ -935,7 +954,7 @@ function setup() {
 
 	// setup scene
 	window.scene = new THREE.Scene();
-	world.setup(scene);
+	world.setup(scene, configServer);
 
 	// setup renderer
 	window.renderer = new THREE.CSS3DRenderer();
@@ -1097,14 +1116,17 @@ var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
+	this.configServer = null;
 
 	this.agents = {};
 	this.selectedAgent = null;
 }
 module.exports = World;
 
-World.prototype.setup = function(scene) {
+World.prototype.setup = function(scene, configServer) {
 	this.scene = scene;
+	this.configServer = configServer;
+	this.leftIsDown = false;
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -1118,6 +1140,8 @@ World.prototype.setup = function(scene) {
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
+	document.body.addEventListener('mousedown', mousedownHandler.bind(this));
+	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	this.spawn({ url: 'local://config' });
@@ -1187,6 +1211,18 @@ function dblclickHandler(e) {
 			window.cameraControls.getMouseInWorld(e, worldPos);
 			cameraControls.centerAt(worldPos);
 		}
+	}
+}
+
+function mousedownHandler(e) {
+	if (e.which == 1) {
+		this.leftIsDown = true;
+	}
+}
+
+function mouseupHandler(e) {
+	if (e.which == 1) {
+		this.leftIsDown = false;
 	}
 }
 

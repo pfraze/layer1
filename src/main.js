@@ -35,7 +35,8 @@ function setup() {
 	});
 
 	// setup services
-	local.addServer('config', new CfgServer());
+	var configServer = new CfgServer();
+	local.addServer('config', configServer);
 	local.addServer('agents', new AgentServer());
 
 	// setup camera
@@ -44,7 +45,7 @@ function setup() {
 
 	// setup scene
 	window.scene = new THREE.Scene();
-	world.setup(scene);
+	world.setup(scene, configServer);
 
 	// setup renderer
 	window.renderer = new THREE.CSS3DRenderer();

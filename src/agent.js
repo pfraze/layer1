@@ -68,9 +68,9 @@ Agent.prototype.getPropsMenu = function() {
 	var html = '';
 	if (this.selfLink.rel) { html += '<p>'+this.selfLink.rel+'</p>'; }
 	html += '<p>';
-	html += '<a href="local://time">realtime</a><br>';
-	html += '<a href="local://time">get json</a><br>';
-	html += '<a href="local://time">get text</a><br>';
+	html += world.configServer.queryAgents([this.selfLink]).map(function(l) {
+		return '<a href="'+l.href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+	}).join('');
 	html += '</p>';
 	return html;
 };
@@ -181,14 +181,15 @@ Agent.prototype.render = function() {
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
-	var clickHandler = iframeMouseEventRedispatcher.bind(this);
-	var dblclickHandler = iframeMouseEventRedispatcher.bind(this);
+	var redirHandler = iframeMouseEventRedispatcher.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', reqHandler);
-			iframe.contentDocument.addEventListener('click', clickHandler);
-			iframe.contentDocument.addEventListener('dblclick', dblclickHandler);
+			iframe.contentDocument.addEventListener('click', redirHandler);
+			iframe.contentDocument.addEventListener('dblclick', redirHandler);
+			iframe.contentDocument.addEventListener('mousedown', redirHandler);
+			iframe.contentDocument.addEventListener('mouseup', redirHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -230,7 +231,13 @@ function iframeRequestEventHandler(e) {
 }
 
 function iframeMouseEventRedispatcher(e) {
-	this.element.dispatchEvent(new MouseEvent(e.type, e));
+	var newEvent = {};
+	for (var k in e) { newEvent[k] = e[k]; }
+	var rect = this.element.getClientRects()[0];
+
+	newEvent.clientX = rect.left + e.clientX;
+	newEvent.clientY = rect.top + e.clientY;
+	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
 }
 
 Agent.prototype.setSelected = function(v) {

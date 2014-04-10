@@ -3,14 +3,17 @@ var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
+	this.configServer = null;
 
 	this.agents = {};
 	this.selectedAgent = null;
 }
 module.exports = World;
 
-World.prototype.setup = function(scene) {
+World.prototype.setup = function(scene, configServer) {
 	this.scene = scene;
+	this.configServer = configServer;
+	this.leftIsDown = false;
 
 	// create background
 	var gridEl = document.createElement('div');
@@ -24,6 +27,8 @@ World.prototype.setup = function(scene) {
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
 	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
+	document.body.addEventListener('mousedown', mousedownHandler.bind(this));
+	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	this.spawn({ url: 'local://config' });
@@ -93,6 +98,18 @@ function dblclickHandler(e) {
 			window.cameraControls.getMouseInWorld(e, worldPos);
 			cameraControls.centerAt(worldPos);
 		}
+	}
+}
+
+function mousedownHandler(e) {
+	if (e.which == 1) {
+		this.leftIsDown = true;
+	}
+}
+
+function mouseupHandler(e) {
+	if (e.which == 1) {
+		this.leftIsDown = false;
 	}
 }
 
