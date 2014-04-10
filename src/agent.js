@@ -176,12 +176,14 @@ Agent.prototype.render = function() {
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
-	var clickHandler = iframeClickEventHandler.bind(this);
+	var clickHandler = iframeMouseEventRedispatcher.bind(this);
+	var dblclickHandler = iframeMouseEventRedispatcher.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', clickHandler);
+			iframe.contentDocument.addEventListener('dblclick', dblclickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -222,7 +224,7 @@ function iframeRequestEventHandler(e) {
 	this.dispatch(e.detail);
 }
 
-function iframeClickEventHandler(e) {
+function iframeMouseEventRedispatcher(e) {
 	this.element.dispatchEvent(new MouseEvent(e.type, e));
 }
 

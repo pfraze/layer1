@@ -23,6 +23,7 @@ World.prototype.setup = function(scene) {
 
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
+	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	this.spawn({ url: 'local://config' });
@@ -69,7 +70,6 @@ World.prototype.select = function(agent) {
 	this.selectedAgent = agent;
 	if (agent) {
 		agent.setSelected(true);
-		cameraControls.moveToward(agent.position);
 	}
 };
 
@@ -81,6 +81,17 @@ function clickHandler(e) {
 			this.select(agent);
 		} else {
 			this.select(null);
+		}
+	}
+}
+
+function dblclickHandler(e) {
+	if (e.which == 1) { // left mouse
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (!agentEl) { // not in an agent (in world space)
+			var worldPos = new THREE.Vector3();
+			window.cameraControls.getMouseInWorld(e, worldPos);
+			cameraControls.centerAt(worldPos);
 		}
 	}
 }

@@ -231,12 +231,14 @@ Agent.prototype.render = function() {
 	// :TODO: can this go in .load() ? appears that it *cant*
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
-	var clickHandler = iframeClickEventHandler.bind(this);
+	var clickHandler = iframeMouseEventRedispatcher.bind(this);
+	var dblclickHandler = iframeMouseEventRedispatcher.bind(this);
 	var bindPoller = setInterval(function() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument.body);
 			iframe.contentDocument.body.addEventListener('request', reqHandler);
 			iframe.contentDocument.addEventListener('click', clickHandler);
+			iframe.contentDocument.addEventListener('dblclick', dblclickHandler);
 			clearInterval(bindPoller);
 		} catch(e) {
 			attempts++;
@@ -277,7 +279,7 @@ function iframeRequestEventHandler(e) {
 	this.dispatch(e.detail);
 }
 
-function iframeClickEventHandler(e) {
+function iframeMouseEventRedispatcher(e) {
 	this.element.dispatchEvent(new MouseEvent(e.type, e));
 }
 
@@ -597,10 +599,26 @@ var CameraControls = function ( object, domElement ) {
 
 	};
 
-	this.reset = function () {
+	this.centerAt = function(pos) {
 
-		_state = STATE.NONE;
-		_prevState = STATE.NONE;
+		pos = pos.clone();
+
+		pos.z = 0;
+		_this.target.copy( pos );
+		pos.z = _this.object.position.z;
+		_this.object.position.copy( pos );
+		_this.object.up.copy( _this.up0 );
+
+		_eye.subVectors( _this.object.position, _this.target );
+		_this.object.lookAt( _this.target );
+
+		_this.dispatchEvent( changeEvent );
+
+		lastPosition.copy( _this.object.position );
+
+	};
+
+	this.reset = function () {
 
 		_this.target.copy( _this.target0 );
 		_this.object.position.copy( _this.position0 );
@@ -1094,6 +1112,7 @@ World.prototype.setup = function(scene) {
 
 	// setup event handlers
 	document.body.addEventListener('click', clickHandler.bind(this));
+	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	this.spawn({ url: 'local://config' });
@@ -1140,7 +1159,6 @@ World.prototype.select = function(agent) {
 	this.selectedAgent = agent;
 	if (agent) {
 		agent.setSelected(true);
-		cameraControls.moveToward(agent.position);
 	}
 };
 
@@ -1152,6 +1170,17 @@ function clickHandler(e) {
 			this.select(agent);
 		} else {
 			this.select(null);
+		}
+	}
+}
+
+function dblclickHandler(e) {
+	if (e.which == 1) { // left mouse
+		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
+		if (!agentEl) { // not in an agent (in world space)
+			var worldPos = new THREE.Vector3();
+			window.cameraControls.getMouseInWorld(e, worldPos);
+			cameraControls.centerAt(worldPos);
 		}
 	}
 }

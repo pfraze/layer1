@@ -269,10 +269,26 @@ var CameraControls = function ( object, domElement ) {
 
 	};
 
-	this.reset = function () {
+	this.centerAt = function(pos) {
 
-		_state = STATE.NONE;
-		_prevState = STATE.NONE;
+		pos = pos.clone();
+
+		pos.z = 0;
+		_this.target.copy( pos );
+		pos.z = _this.object.position.z;
+		_this.object.position.copy( pos );
+		_this.object.up.copy( _this.up0 );
+
+		_eye.subVectors( _this.object.position, _this.target );
+		_this.object.lookAt( _this.target );
+
+		_this.dispatchEvent( changeEvent );
+
+		lastPosition.copy( _this.object.position );
+
+	};
+
+	this.reset = function () {
 
 		_this.target.copy( _this.target0 );
 		_this.object.position.copy( _this.position0 );
