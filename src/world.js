@@ -1,12 +1,12 @@
-var Agent = require('./agent');
+var Entity = require('./entity');
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
 	this.configServer = null;
 
-	this.agents = {};
-	this.selectedAgent = null;
+	this.entities = {};
+	this.selectedEntity = null;
 }
 module.exports = World;
 
@@ -36,56 +36,56 @@ World.prototype.setup = function(scene, configServer) {
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 
-World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(6) : idOrEl; // slice 6 to pass 'agent-' and go to the number
-	return this.agents[id];
+World.prototype.getEntity = function(idOrEl) {
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(4) : idOrEl; // slice 4 to pass 'ent-' and go to the number
+	return this.entities[id];
 };
 
 World.prototype.getSelection = function() {
-	return this.selectedAgent;
+	return this.selectedEntity;
 };
 
 World.prototype.spawn = function(opts) {
-	var agent = new Agent(opts);
-	agent.setup();
-	this.agents[agent.id] = agent;
-	this.scene.add(agent);
-	return agent;
+	var entity = new Entity(opts);
+	entity.setup();
+	this.entities[entity.id] = entity;
+	this.scene.add(entity);
+	return entity;
 };
 
-World.prototype.kill = function(agentOrId) {
-	if (agentOrId && !(agentOrId instanceof Agent)) {
-		agentOrId = this.getAgent(agentOrId);
+World.prototype.kill = function(entOrId) {
+	if (entOrId && !(entOrId instanceof Entity)) {
+		entOrId = this.getEntity(entOrId);
 	}
-	var agent = agentOrId;
-	if (!agent) {
+	var entity = entOrId;
+	if (!entity) {
 		return false;
 	}
-	agent.destroy();
-	this.scene.remove(agent);
-	delete this.agents[agent.id];
-	return agent;
+	entity.destroy();
+	this.scene.remove(entity);
+	delete this.entities[entity.id];
+	return entity;
 };
 
-World.prototype.select = function(agent) {
+World.prototype.select = function(entity) {
 	// clear current selection
-	if (this.selectedAgent) {
-		this.selectedAgent.setSelected(false);
+	if (this.selectedEntity) {
+		this.selectedEntity.setSelected(false);
 	}
 
 	// set new selection
-	this.selectedAgent = agent;
-	if (agent) {
-		agent.setSelected(true);
+	this.selectedEntity = entity;
+	if (entity) {
+		entity.setSelected(true);
 	}
 };
 
 function clickHandler(e) {
 	if (e.which == 1) { // left mouse
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (agentEl) {
-			var agent = this.getAgent(agentEl);
-			this.select(agent);
+		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		if (entityEl) {
+			var entity = this.getEntity(entityEl);
+			this.select(entity);
 		} else {
 			this.select(null);
 		}
@@ -94,8 +94,8 @@ function clickHandler(e) {
 
 function dblclickHandler(e) {
 	if (e.which == 1) { // left mouse
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (!agentEl) { // not in an agent (in world space)
+		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		if (!entityEl) { // not in an entity (in world space)
 			var worldPos = new THREE.Vector3();
 			window.cameraControls.getMouseInWorld(e, worldPos);
 			cameraControls.centerAt(worldPos);
@@ -116,8 +116,8 @@ function mouseupHandler(e) {
 }
 
 function contextmenuHandler(e) {
-	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-	if (!agentEl) {
+	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+	if (!entityEl) {
 		e.preventDefault();
 		e.stopPropagation();
 

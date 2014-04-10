@@ -1,11 +1,11 @@
 var util = require('./util');
 
-function Agent(opts) {
+function Entity(opts) {
 	// setup options
 	if (!opts) { opts = {}; }
 	if (!opts.el) {
 		opts.el = document.createElement('div');
-		opts.el.className = 'agent';
+		opts.el.className = 'ent';
 	}
 	this.url = opts.url || null;
 	this.lastResponse = opts.lastResponse || null;
@@ -13,7 +13,7 @@ function Agent(opts) {
 
 	// super
 	THREE.CSS3DObject.call(this, opts.el);
-	this.element.id = 'agent-'+this.id;
+	this.element.id = 'ent-'+this.id;
 
 	// initial state
 	this.isSelected = false;
@@ -33,10 +33,10 @@ function Agent(opts) {
 		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
 	].join('');
 }
-Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
+Entity.prototype = Object.create(THREE.CSS3DObject.prototype);
 
-Agent.prototype.setup = function() {
-	if (!this.url) { throw "Agent must have a url to be set up"; }
+Entity.prototype.setup = function() {
+	if (!this.url) { throw "Entity must have a url to be set up"; }
 	if (this.lastResponse) {
 		this.setResolved(true);
 		this.links = this.lastResponse.parsedHeaders.link;
@@ -48,11 +48,11 @@ Agent.prototype.setup = function() {
 	}
 };
 
-Agent.prototype.destroy = function() {
+Entity.prototype.destroy = function() {
 
 };
 
-Agent.prototype.getTitle = function() {
+Entity.prototype.getTitle = function() {
 	var title = this.url;
 	if (this.selfLink && this.selfLink.title) { title = this.selfLink.title; }
 	if (this.isBroken) { title += ' [broken: '+this.lastResponse.status+' '+this.lastResponse.reason+']'; }
@@ -60,7 +60,7 @@ Agent.prototype.getTitle = function() {
 	return util.escapeHTML(title);
 };
 
-Agent.prototype.getPropsMenu = function() {
+Entity.prototype.getPropsMenu = function() {
 	var sl = this.selfLink;
 	if (!sl) { return ''; }
 	var html = '';
@@ -74,7 +74,7 @@ Agent.prototype.getPropsMenu = function() {
 	return html;
 };
 
-Agent.prototype.fetch = function() {
+Entity.prototype.fetch = function() {
 	var self = this;
 	return util.fetch(this.url)
 		.then(function(res) {
@@ -97,7 +97,7 @@ Agent.prototype.fetch = function() {
 		});
 };
 
-Agent.prototype.dispatch = function(req) {
+Entity.prototype.dispatch = function(req) {
 	var self = this;
 	var target = req.target; // local.Request() will strip `target`
 	var body = req.body; delete req.body;
@@ -141,7 +141,7 @@ Agent.prototype.dispatch = function(req) {
 	return res_;
 };
 
-Agent.prototype.moveTo = function(dest) {
+Entity.prototype.moveTo = function(dest) {
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
 		.to({ x: dest.x, y: dest.y }, 200)
@@ -150,7 +150,7 @@ Agent.prototype.moveTo = function(dest) {
 		.start();
 };
 
-Agent.prototype.render = function() {
+Entity.prototype.render = function() {
 	// set title
 	this.element.querySelector('.title').innerHTML = [
 		this.getTitle(),
@@ -213,7 +213,7 @@ Agent.prototype.render = function() {
 
 };
 
-// when called, must be bound to Agent instance
+// when called, must be bound to Entity instance
 function sizeIframe(iframe) {
 	iframe.height = null; // reset so we can get a fresh measurement
 
@@ -251,7 +251,7 @@ function iframeMouseEventRedispatcher(e) {
 	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
 }
 
-Agent.prototype.setSelected = function(v) {
+Entity.prototype.setSelected = function(v) {
 	this.isSelected = v;
 	if (v) {
 		this.element.classList.add('selected');
@@ -260,7 +260,7 @@ Agent.prototype.setSelected = function(v) {
 	}
 };
 
-Agent.prototype.setResolved = function(v) {
+Entity.prototype.setResolved = function(v) {
 	this.isResolved = v;
 	if (v) {
 		this.isBroken = false;
@@ -271,7 +271,7 @@ Agent.prototype.setResolved = function(v) {
 	}
 };
 
-Agent.prototype.setBroken = function(v) {
+Entity.prototype.setBroken = function(v) {
 	this.isBroken = v;
 	if (v) {
 		this.isResolved = false;
@@ -282,7 +282,7 @@ Agent.prototype.setBroken = function(v) {
 	}
 };
 
-Agent.prototype.getBaseUrl = function(url) {
+Entity.prototype.getBaseUrl = function(url) {
 	if (!url) url = this.url;
 	if (!url) return '';
 	var urld = local.parseUri(url);
@@ -294,4 +294,4 @@ function prepLink(link) {
 	link.rel = link.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
 }
 
-module.exports = Agent;
+module.exports = Entity;

@@ -1,356 +1,4 @@
 ;(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
-var util = require('./util');
-var esc = util.escapeHTML;
-
-function AgentServer(opts) {
-	local.Server.call(this, opts);
-}
-AgentServer.prototype = Object.create(local.Server.prototype);
-module.exports = AgentServer;
-
-AgentServer.prototype.handleLocalRequest = function(req, res) {
-	if (req.path == '/') {
-		this.root(req, res);
-	} else {
-		var agentId = req.path.slice(1);
-		var agent = world.getAgent(agentId);
-		if (!agent) { return res.writeHead(404).end(); }
-		this.agent(req, res, agent);
-	}
-};
-
-AgentServer.prototype.root = function(req, res) {
-	if (req.method == 'GET') {
-		this.rootGET(req, res);
-	} else {
-		res.writeHead(405, 'Bad Method').end();
-	}
-};
-
-AgentServer.prototype.rootGET = function(req, res) {
-	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
-	res.end(this.rootRenderHTML());
-};
-
-AgentServer.prototype.rootRenderHTML = function(formMsg) {
-	return 'todo';
-};
-
-AgentServer.prototype.agent = function(req, res, agent) {
-	if (req.method == 'DELETE') {
-		this.agentDELETE(req, res, agent);
-	} else {
-		res.writeHead(405, 'Bad Method').end();
-	}
-};
-
-AgentServer.prototype.agentDELETE = function(req, res, agent) {
-	if (world.kill(agent)) {
-		res.writeHead(307, 'Ok, Redirect to Null').end();
-	} else {
-		res.writeHead(404, 'Not Found').end();
-	}
-
-};
-},{"./util":6}],2:[function(require,module,exports){
-var util = require('./util');
-
-function Agent(opts) {
-	// setup options
-	if (!opts) { opts = {}; }
-	if (!opts.el) {
-		opts.el = document.createElement('div');
-		opts.el.className = 'agent';
-	}
-	this.url = opts.url || null;
-	this.lastResponse = opts.lastResponse || null;
-	this.parentAgent = opts.parentAgent || null;
-
-	// super
-	THREE.CSS3DObject.call(this, opts.el);
-	this.element.id = 'agent-'+this.id;
-
-	// initial state
-	this.isSelected = false;
-	this.isResolved = false;
-	this.isBroken = false;
-	this.links = [];
-	this.selfLink = null;
-	if (this.parentAgent) {
-		this.position.copy(this.parentAgent.position);
-		this.position.x += 500;
-	}
-
-	// visual
-	this.element.innerHTML = [
-		'<div class="title">'+this.getTitle()+'</div>',
-		'<div class="props-menu"></div>',
-		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
-	].join('');
-}
-Agent.prototype = Object.create(THREE.CSS3DObject.prototype);
-
-Agent.prototype.setup = function() {
-	if (!this.url) { throw "Agent must have a url to be set up"; }
-	if (this.lastResponse) {
-		this.setResolved(true);
-		this.links = this.lastResponse.parsedHeaders.link;
-		this.selfLink = local.queryLinks(this.links, {rel:'self'})[0];
-		if (this.selfLink) { prepLink(this.selfLink); }
-		this.render();
-	} else {
-		this.fetch();
-	}
-};
-
-Agent.prototype.destroy = function() {
-
-};
-
-Agent.prototype.getTitle = function() {
-	var title = this.url;
-	if (this.selfLink && this.selfLink.title) { title = this.selfLink.title; }
-	if (this.isBroken) { title += ' [broken: '+this.lastResponse.status+' '+this.lastResponse.reason+']'; }
-	else if (!this.isResolved) { title += ' [loading...]'; }
-	return util.escapeHTML(title);
-};
-
-Agent.prototype.getPropsMenu = function() {
-	var sl = this.selfLink;
-	if (!sl) { return ''; }
-	var html = '';
-	if (sl.rel) { html += '<p>'+sl.rel+'</p>'; }
-	html += '<p>';
-	html += world.configServer.queryAgents([sl]).map(function(l) {
-		var href = local.UriTemplate.parse(l.href).expand({ target: sl.href });
-		return '<a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
-	}).join('');
-	html += '</p>';
-	return html;
-};
-
-Agent.prototype.fetch = function() {
-	var self = this;
-	return util.fetch(this.url)
-		.then(function(res) {
-			self.lastResponse = res;
-			self.setResolved(true);
-			self.links = res.parsedHeaders.link;
-			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
-			if (self.selfLink) { prepLink(self.selfLink); }
-			self.render();
-			return res;
-		})
-		.fail(function(res) {
-			self.lastResponse = res;
-			self.setBroken(true);
-			self.links = res.parsedHeaders.link;
-			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
-			if (self.selfLink) { prepLink(self.selfLink); }
-			self.render();
-			throw res;
-		});
-};
-
-Agent.prototype.dispatch = function(req) {
-	var self = this;
-	var target = req.target; // local.Request() will strip `target`
-	var body = req.body; delete req.body;
-
-	if (!req.url) { req.url = this.url; }
-	if (!req.headers) { req.headers = {}; }
-	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
-	req = (req instanceof local.Request) ? req : (new local.Request(req));
-	if (body !== null && body !== '' && typeof body != 'undefined' && !req.header('Content-Type')) {
-		if (typeof body == 'object') {
-			req.header('Content-Type', 'application/json');
-		} else {
-			req.header('Content-Type', 'text/plain');
-		}
-	}
-
-	// relative link? make absolute
-	if (!local.isAbsUri(req.url)) {
-		req.url = local.joinRelPath(this.getBaseUrl(), req.url);
-	}
-
-	res_ = local.dispatch(req);
-	res_.always(function(res) {
-		var urld1 = local.parseUri(self.url);
-		var urld2 = local.parseUri(req.url);
-		if (urld1.protocol == urld2.protocol && urld1.authority == urld2.authority) {
-			// in-place
-			self.url = req.url;
-			self.lastResponse = res;
-			self.render();
-		} else {
-			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
-				return; // dont spawn
-			}
-			// spawn sub
-			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
-		}
-	});
-
-	req.end(body);
-	return res_;
-};
-
-Agent.prototype.moveTo = function(dest) {
-	var self = this;
-	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
-		.to({ x: dest.x, y: dest.y }, 200)
-		.easing(TWEEN.Easing.Quadratic.InOut)
-		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
-		.start();
-};
-
-Agent.prototype.render = function() {
-	// set title
-	this.element.querySelector('.title').innerHTML = [
-		this.getTitle(),
-		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
-	].join('');
-	this.element.querySelector('.props-menu').innerHTML = [
-		this.getPropsMenu()
-	].join('');
-
-	if (!this.lastResponse) {
-		return;
-	}
-
-	// prep response body
-	var body = (this.lastResponse) ? this.lastResponse.body : '';
-	if (body && typeof body == 'object') {
-		body = JSON.stringify(body);
-	}
-	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
-	var prependHTML = [
-		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
-		// ^ script-src 'self' enables the parent page to reach into the iframe
-		'<base href="'+this.getBaseUrl()+'">',
-		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
-	].join('');
-	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
-
-	// set iframe
-	var iframe = this.element.querySelector('iframe');
-	iframe.setAttribute('srcdoc', body);
-
-	// :HACK: everything below here in this function kinda blows
-
-	// Size the iframe to its content
-	iframe.addEventListener('load', sizeIframe.bind(this, iframe)); // must be set every load
-
-	// Bind request events
-	// :TODO: can this go in .load() ? appears that it *cant*
-	var attempts = 0;
-	var reqHandler = iframeRequestEventHandler.bind(this);
-	var redirHandler = iframeMouseEventRedispatcher.bind(this);
-	function tryEventBinding() {
-		try {
-			local.bindRequestEvents(iframe.contentDocument);
-			iframe.contentDocument.addEventListener('request', reqHandler);
-			iframe.contentDocument.addEventListener('click', redirHandler);
-			iframe.contentDocument.addEventListener('dblclick', redirHandler);
-			iframe.contentDocument.addEventListener('mousedown', redirHandler);
-			iframe.contentDocument.addEventListener('mouseup', redirHandler);
-		} catch(e) {
-			attempts++;
-			if (attempts > 100) {
-				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
-			} else {
-				// setTimeout(tryEventBinding, 50); // try again
-			}
-		}
-	}
-	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
-
-};
-
-// when called, must be bound to Agent instance
-function sizeIframe(iframe) {
-	iframe.height = null; // reset so we can get a fresh measurement
-
-	var oh = iframe.contentDocument.body.offsetHeight;
-	var sh = iframe.contentDocument.body.scrollHeight;
-	var w = iframe.contentDocument.body.scrollWidth;
-	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
-	iframe.height = ((sh == 150) ? oh : sh) + 'px';
-	iframe.width = ((w < 800) ? w : 800) + 'px';
-	this.element.querySelector('.props-menu').style.left = iframe.width;
-
-	// In 100ms, do it again - it seems styles aren't always in place
-	var self = this;
-	setTimeout(function() {
-		var oh = iframe.contentDocument.body.offsetHeight;
-		var sh = iframe.contentDocument.body.scrollHeight;
-		var w = iframe.contentDocument.body.scrollWidth;
-		iframe.height = ((sh == 150) ? oh : sh) + 'px';
-		iframe.width = ((w < 800) ? w : 800) + 'px';
-		self.element.querySelector('.props-menu').style.left = iframe.width;
-	}, 100);
-}
-
-function iframeRequestEventHandler(e) {
-	this.dispatch(e.detail);
-}
-
-function iframeMouseEventRedispatcher(e) {
-	var newEvent = {};
-	for (var k in e) { newEvent[k] = e[k]; }
-	var rect = this.element.getClientRects()[0];
-
-	newEvent.clientX = rect.left + e.clientX;
-	newEvent.clientY = rect.top + e.clientY;
-	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
-}
-
-Agent.prototype.setSelected = function(v) {
-	this.isSelected = v;
-	if (v) {
-		this.element.classList.add('selected');
-	} else {
-		this.element.classList.remove('selected');
-	}
-};
-
-Agent.prototype.setResolved = function(v) {
-	this.isResolved = v;
-	if (v) {
-		this.isBroken = false;
-		this.element.classList.remove('broken');
-		this.element.classList.add('resolved');
-	} else {
-		this.element.classList.remove('resolved');
-	}
-};
-
-Agent.prototype.setBroken = function(v) {
-	this.isBroken = v;
-	if (v) {
-		this.isResolved = false;
-		this.element.classList.remove('resolved');
-		this.element.classList.add('broken');
-	} else {
-		this.element.classList.remove('broken');
-	}
-};
-
-Agent.prototype.getBaseUrl = function(url) {
-	if (!url) url = this.url;
-	if (!url) return '';
-	var urld = local.parseUri(url);
-	var basepath = urld.path.slice(0, urld.path.lastIndexOf('/'));
-	return urld.protocol + '://' + urld.authority + basepath + '/';
-};
-
-function prepLink(link) {
-	link.rel = link.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
-}
-
-module.exports = Agent;
-},{"./util":6}],3:[function(require,module,exports){
 /**
  * Based on TrackballControls.js
  * @author Paul Frazee
@@ -772,7 +420,7 @@ function setIframePointerEvents(v) {
 }
 
 module.exports = CameraControls;
-},{}],4:[function(require,module,exports){
+},{}],2:[function(require,module,exports){
 var util = require('./util');
 var esc = util.escapeHTML;
 
@@ -923,12 +571,364 @@ CfgServer.prototype.rootRender = function(req, res, formMsg) {
 	html += '</div>';
 	res.end(html);
 };
+},{"./util":6}],3:[function(require,module,exports){
+var util = require('./util');
+var esc = util.escapeHTML;
+
+function EntityServer(opts) {
+	local.Server.call(this, opts);
+}
+EntityServer.prototype = Object.create(local.Server.prototype);
+module.exports = EntityServer;
+
+EntityServer.prototype.handleLocalRequest = function(req, res) {
+	if (req.path == '/') {
+		this.root(req, res);
+	} else {
+		var entId = req.path.slice(1);
+		var ent = world.getEntity(entId);
+		if (!ent) { return res.writeHead(404).end(); }
+		this.entity(req, res, ent);
+	}
+};
+
+EntityServer.prototype.root = function(req, res) {
+	if (req.method == 'GET') {
+		this.rootGET(req, res);
+	} else {
+		res.writeHead(405, 'Bad Method').end();
+	}
+};
+
+EntityServer.prototype.rootGET = function(req, res) {
+	res.writeHead(200, 'OK', {'Content-Type':'text/html'});
+	res.end(this.rootRenderHTML());
+};
+
+EntityServer.prototype.rootRenderHTML = function(formMsg) {
+	return 'todo';
+};
+
+EntityServer.prototype.entity = function(req, res, ent) {
+	if (req.method == 'DELETE') {
+		this.entityDELETE(req, res, ent);
+	} else {
+		res.writeHead(405, 'Bad Method').end();
+	}
+};
+
+EntityServer.prototype.entityDELETE = function(req, res, ent) {
+	if (world.kill(ent)) {
+		res.writeHead(307, 'Ok, Redirect to Null').end();
+	} else {
+		res.writeHead(404, 'Not Found').end();
+	}
+
+};
+},{"./util":6}],4:[function(require,module,exports){
+var util = require('./util');
+
+function Entity(opts) {
+	// setup options
+	if (!opts) { opts = {}; }
+	if (!opts.el) {
+		opts.el = document.createElement('div');
+		opts.el.className = 'ent';
+	}
+	this.url = opts.url || null;
+	this.lastResponse = opts.lastResponse || null;
+	this.parentAgent = opts.parentAgent || null;
+
+	// super
+	THREE.CSS3DObject.call(this, opts.el);
+	this.element.id = 'ent-'+this.id;
+
+	// initial state
+	this.isSelected = false;
+	this.isResolved = false;
+	this.isBroken = false;
+	this.links = [];
+	this.selfLink = null;
+	if (this.parentAgent) {
+		this.position.copy(this.parentAgent.position);
+		this.position.x += 500;
+	}
+
+	// visual
+	this.element.innerHTML = [
+		'<div class="title">'+this.getTitle()+'</div>',
+		'<div class="props-menu"></div>',
+		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
+	].join('');
+}
+Entity.prototype = Object.create(THREE.CSS3DObject.prototype);
+
+Entity.prototype.setup = function() {
+	if (!this.url) { throw "Entity must have a url to be set up"; }
+	if (this.lastResponse) {
+		this.setResolved(true);
+		this.links = this.lastResponse.parsedHeaders.link;
+		this.selfLink = local.queryLinks(this.links, {rel:'self'})[0];
+		if (this.selfLink) { prepLink(this.selfLink); }
+		this.render();
+	} else {
+		this.fetch();
+	}
+};
+
+Entity.prototype.destroy = function() {
+
+};
+
+Entity.prototype.getTitle = function() {
+	var title = this.url;
+	if (this.selfLink && this.selfLink.title) { title = this.selfLink.title; }
+	if (this.isBroken) { title += ' [broken: '+this.lastResponse.status+' '+this.lastResponse.reason+']'; }
+	else if (!this.isResolved) { title += ' [loading...]'; }
+	return util.escapeHTML(title);
+};
+
+Entity.prototype.getPropsMenu = function() {
+	var sl = this.selfLink;
+	if (!sl) { return ''; }
+	var html = '';
+	if (sl.rel) { html += '<p>'+sl.rel+'</p>'; }
+	html += '<p>';
+	html += world.configServer.queryAgents([sl]).map(function(l) {
+		var href = local.UriTemplate.parse(l.href).expand({ target: sl.href });
+		return '<a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+	}).join('');
+	html += '</p>';
+	return html;
+};
+
+Entity.prototype.fetch = function() {
+	var self = this;
+	return util.fetch(this.url)
+		.then(function(res) {
+			self.lastResponse = res;
+			self.setResolved(true);
+			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
+			self.render();
+			return res;
+		})
+		.fail(function(res) {
+			self.lastResponse = res;
+			self.setBroken(true);
+			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
+			self.render();
+			throw res;
+		});
+};
+
+Entity.prototype.dispatch = function(req) {
+	var self = this;
+	var target = req.target; // local.Request() will strip `target`
+	var body = req.body; delete req.body;
+
+	if (!req.url) { req.url = this.url; }
+	if (!req.headers) { req.headers = {}; }
+	if (req.headers && !req.headers.accept) { req.headers.accept = 'text/html, */*'; }
+	req = (req instanceof local.Request) ? req : (new local.Request(req));
+	if (body !== null && body !== '' && typeof body != 'undefined' && !req.header('Content-Type')) {
+		if (typeof body == 'object') {
+			req.header('Content-Type', 'application/json');
+		} else {
+			req.header('Content-Type', 'text/plain');
+		}
+	}
+
+	// relative link? make absolute
+	if (!local.isAbsUri(req.url)) {
+		req.url = local.joinRelPath(this.getBaseUrl(), req.url);
+	}
+
+	res_ = local.dispatch(req);
+	res_.always(function(res) {
+		var urld1 = local.parseUri(self.url);
+		var urld2 = local.parseUri(req.url);
+		if (urld1.protocol == urld2.protocol && urld1.authority == urld2.authority) {
+			// in-place
+			self.url = req.url;
+			self.lastResponse = res;
+			self.render();
+		} else {
+			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
+				return; // dont spawn
+			}
+			// spawn sub
+			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
+		}
+	});
+
+	req.end(body);
+	return res_;
+};
+
+Entity.prototype.moveTo = function(dest) {
+	var self = this;
+	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
+		.to({ x: dest.x, y: dest.y }, 200)
+		.easing(TWEEN.Easing.Quadratic.InOut)
+		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
+		.start();
+};
+
+Entity.prototype.render = function() {
+	// set title
+	this.element.querySelector('.title').innerHTML = [
+		this.getTitle(),
+		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
+	].join('');
+	this.element.querySelector('.props-menu').innerHTML = [
+		this.getPropsMenu()
+	].join('');
+
+	if (!this.lastResponse) {
+		return;
+	}
+
+	// prep response body
+	var body = (this.lastResponse) ? this.lastResponse.body : '';
+	if (body && typeof body == 'object') {
+		body = JSON.stringify(body);
+	}
+	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
+	var prependHTML = [
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		// ^ script-src 'self' enables the parent page to reach into the iframe
+		'<base href="'+this.getBaseUrl()+'">',
+		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
+	].join('');
+	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
+
+	// set iframe
+	var iframe = this.element.querySelector('iframe');
+	iframe.setAttribute('srcdoc', body);
+
+	// :HACK: everything below here in this function kinda blows
+
+	// Size the iframe to its content
+	iframe.addEventListener('load', sizeIframe.bind(this, iframe)); // must be set every load
+
+	// Bind request events
+	// :TODO: can this go in .load() ? appears that it *cant*
+	var attempts = 0;
+	var reqHandler = iframeRequestEventHandler.bind(this);
+	var redirHandler = iframeMouseEventRedispatcher.bind(this);
+	function tryEventBinding() {
+		try {
+			local.bindRequestEvents(iframe.contentDocument);
+			iframe.contentDocument.addEventListener('request', reqHandler);
+			iframe.contentDocument.addEventListener('click', redirHandler);
+			iframe.contentDocument.addEventListener('dblclick', redirHandler);
+			iframe.contentDocument.addEventListener('mousedown', redirHandler);
+			iframe.contentDocument.addEventListener('mouseup', redirHandler);
+		} catch(e) {
+			attempts++;
+			if (attempts > 100) {
+				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
+			} else {
+				// setTimeout(tryEventBinding, 50); // try again
+			}
+		}
+	}
+	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
+
+};
+
+// when called, must be bound to Entity instance
+function sizeIframe(iframe) {
+	iframe.height = null; // reset so we can get a fresh measurement
+
+	var oh = iframe.contentDocument.body.offsetHeight;
+	var sh = iframe.contentDocument.body.scrollHeight;
+	var w = iframe.contentDocument.body.scrollWidth;
+	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
+	iframe.height = ((sh == 150) ? oh : sh) + 'px';
+	iframe.width = ((w < 800) ? w : 800) + 'px';
+	this.element.querySelector('.props-menu').style.left = iframe.width;
+
+	// In 100ms, do it again - it seems styles aren't always in place
+	var self = this;
+	setTimeout(function() {
+		var oh = iframe.contentDocument.body.offsetHeight;
+		var sh = iframe.contentDocument.body.scrollHeight;
+		var w = iframe.contentDocument.body.scrollWidth;
+		iframe.height = ((sh == 150) ? oh : sh) + 'px';
+		iframe.width = ((w < 800) ? w : 800) + 'px';
+		self.element.querySelector('.props-menu').style.left = iframe.width;
+	}, 100);
+}
+
+function iframeRequestEventHandler(e) {
+	this.dispatch(e.detail);
+}
+
+function iframeMouseEventRedispatcher(e) {
+	var newEvent = {};
+	for (var k in e) { newEvent[k] = e[k]; }
+	var rect = this.element.getClientRects()[0];
+
+	newEvent.clientX = rect.left + e.clientX;
+	newEvent.clientY = rect.top + e.clientY;
+	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
+}
+
+Entity.prototype.setSelected = function(v) {
+	this.isSelected = v;
+	if (v) {
+		this.element.classList.add('selected');
+	} else {
+		this.element.classList.remove('selected');
+	}
+};
+
+Entity.prototype.setResolved = function(v) {
+	this.isResolved = v;
+	if (v) {
+		this.isBroken = false;
+		this.element.classList.remove('broken');
+		this.element.classList.add('resolved');
+	} else {
+		this.element.classList.remove('resolved');
+	}
+};
+
+Entity.prototype.setBroken = function(v) {
+	this.isBroken = v;
+	if (v) {
+		this.isResolved = false;
+		this.element.classList.remove('resolved');
+		this.element.classList.add('broken');
+	} else {
+		this.element.classList.remove('broken');
+	}
+};
+
+Entity.prototype.getBaseUrl = function(url) {
+	if (!url) url = this.url;
+	if (!url) return '';
+	var urld = local.parseUri(url);
+	var basepath = urld.path.slice(0, urld.path.lastIndexOf('/'));
+	return urld.protocol + '://' + urld.authority + basepath + '/';
+};
+
+function prepLink(link) {
+	link.rel = link.rel.split(' ').filter(function(r) { return (r != 'self'); }).join(' ');
+}
+
+module.exports = Entity;
 },{"./util":6}],5:[function(require,module,exports){
 var World = require('./world');
 var CameraControls = require('./camera-controls');
 var WorkerProxy = require('./worker-proxy');
 var CfgServer = require('./cfg-server');
-var AgentServer = require('./agent-server');
+var EntityServer = require('./entity-server');
 
 // global state & behaviors
 window.world = new World(); // a whole new woooooorld
@@ -940,7 +940,6 @@ tick();
 function setup() {
 	// setup local
 	local.logAllExceptions = true;
-	local.schemes.register('local', local.schemes.get('httpl')); // use local://
 
 	// log all traffic
 	local.setDispatchWrapper(function(req, res, dispatch) {
@@ -955,17 +954,17 @@ function setup() {
 	try { local.bindRequestEvents(document.body); }
 	catch (e) { console.error('Failed to bind body request events.', e); }
 	document.body.addEventListener('request', function(e) {
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (!agentEl) throw "Request originated from outside of an agent in the world";
-		agent = world.getAgent(agentEl);
-		agent.dispatch(e.detail);
+		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		if (!entityEl) throw "Request originated from outside of an entity in the world";
+		entity = world.getEntity(entityEl);
+		entity.dispatch(e.detail);
 	});
 
 	// setup services
 	var configServer = new CfgServer({ domain: 'config' });
 	local.addServer('worker-bridge', new WorkerProxy());
 	local.addServer('config', configServer);
-	local.addServer('agents', new AgentServer());
+	local.addServer('ents', new EntityServer());
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
@@ -1011,7 +1010,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./agent-server":1,"./camera-controls":3,"./cfg-server":4,"./worker-proxy":7,"./world":8}],6:[function(require,module,exports){
+},{"./camera-controls":1,"./cfg-server":2,"./entity-server":3,"./worker-proxy":7,"./world":8}],6:[function(require,module,exports){
 var lbracket_regex = /</g;
 var rbracket_regex = />/g;
 function escapeHTML(str) {
@@ -1205,15 +1204,15 @@ WorkerProxy.prototype.proxy = function(req, res, worker) {
 	req.on('end', function() { req2.end(); });
 };
 },{"./util":6}],8:[function(require,module,exports){
-var Agent = require('./agent');
+var Entity = require('./entity');
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
 	this.configServer = null;
 
-	this.agents = {};
-	this.selectedAgent = null;
+	this.entities = {};
+	this.selectedEntity = null;
 }
 module.exports = World;
 
@@ -1243,56 +1242,56 @@ World.prototype.setup = function(scene, configServer) {
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
 };
 
-World.prototype.getAgent = function(idOrEl) {
-	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(6) : idOrEl; // slice 6 to pass 'agent-' and go to the number
-	return this.agents[id];
+World.prototype.getEntity = function(idOrEl) {
+	var id = (idOrEl instanceof HTMLElement) ? idOrEl.id.slice(4) : idOrEl; // slice 4 to pass 'ent-' and go to the number
+	return this.entities[id];
 };
 
 World.prototype.getSelection = function() {
-	return this.selectedAgent;
+	return this.selectedEntity;
 };
 
 World.prototype.spawn = function(opts) {
-	var agent = new Agent(opts);
-	agent.setup();
-	this.agents[agent.id] = agent;
-	this.scene.add(agent);
-	return agent;
+	var entity = new Entity(opts);
+	entity.setup();
+	this.entities[entity.id] = entity;
+	this.scene.add(entity);
+	return entity;
 };
 
-World.prototype.kill = function(agentOrId) {
-	if (agentOrId && !(agentOrId instanceof Agent)) {
-		agentOrId = this.getAgent(agentOrId);
+World.prototype.kill = function(entOrId) {
+	if (entOrId && !(entOrId instanceof Entity)) {
+		entOrId = this.getEntity(entOrId);
 	}
-	var agent = agentOrId;
-	if (!agent) {
+	var entity = entOrId;
+	if (!entity) {
 		return false;
 	}
-	agent.destroy();
-	this.scene.remove(agent);
-	delete this.agents[agent.id];
-	return agent;
+	entity.destroy();
+	this.scene.remove(entity);
+	delete this.entities[entity.id];
+	return entity;
 };
 
-World.prototype.select = function(agent) {
+World.prototype.select = function(entity) {
 	// clear current selection
-	if (this.selectedAgent) {
-		this.selectedAgent.setSelected(false);
+	if (this.selectedEntity) {
+		this.selectedEntity.setSelected(false);
 	}
 
 	// set new selection
-	this.selectedAgent = agent;
-	if (agent) {
-		agent.setSelected(true);
+	this.selectedEntity = entity;
+	if (entity) {
+		entity.setSelected(true);
 	}
 };
 
 function clickHandler(e) {
 	if (e.which == 1) { // left mouse
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (agentEl) {
-			var agent = this.getAgent(agentEl);
-			this.select(agent);
+		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		if (entityEl) {
+			var entity = this.getEntity(entityEl);
+			this.select(entity);
 		} else {
 			this.select(null);
 		}
@@ -1301,8 +1300,8 @@ function clickHandler(e) {
 
 function dblclickHandler(e) {
 	if (e.which == 1) { // left mouse
-		var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-		if (!agentEl) { // not in an agent (in world space)
+		var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+		if (!entityEl) { // not in an entity (in world space)
 			var worldPos = new THREE.Vector3();
 			window.cameraControls.getMouseInWorld(e, worldPos);
 			cameraControls.centerAt(worldPos);
@@ -1323,8 +1322,8 @@ function mouseupHandler(e) {
 }
 
 function contextmenuHandler(e) {
-	var agentEl = local.util.findParentNode.byClass(e.target, 'agent');
-	if (!agentEl) {
+	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+	if (!entityEl) {
 		e.preventDefault();
 		e.stopPropagation();
 
@@ -1334,5 +1333,5 @@ function contextmenuHandler(e) {
 		this.getSelection().moveTo(worldPos);
 	}
 }
-},{"./agent":2}]},{},[5])
+},{"./entity":4}]},{},[5])
 ;
