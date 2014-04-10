@@ -632,7 +632,7 @@ function Entity(opts) {
 	}
 	this.url = opts.url || null;
 	this.lastResponse = opts.lastResponse || null;
-	this.parentAgent = opts.parentAgent || null;
+	this.parentEntity = opts.parentEntity || null;
 
 	// super
 	THREE.CSS3DObject.call(this, opts.el);
@@ -644,8 +644,8 @@ function Entity(opts) {
 	this.isBroken = false;
 	this.links = [];
 	this.selfLink = null;
-	if (this.parentAgent) {
-		this.position.copy(this.parentAgent.position);
+	if (this.parentEntity) {
+		this.position.copy(this.parentEntity.position);
 		this.position.x += 500;
 	}
 
@@ -673,6 +673,10 @@ Entity.prototype.setup = function() {
 
 Entity.prototype.destroy = function() {
 
+};
+
+Entity.prototype.isAgent = function() {
+	return (this.selfLink && local.queryLink(this.selfLink, {rel:'todorel.com/agent'}));
 };
 
 Entity.prototype.getTitle = function() {
@@ -759,7 +763,7 @@ Entity.prototype.dispatch = function(req) {
 				return; // dont spawn
 			}
 			// spawn sub
-			world.spawn({ url: req.url, lastResponse: res, parentAgent: self });
+			world.spawn({ url: req.url, lastResponse: res, parentEntity: self });
 		}
 	});
 
@@ -778,7 +782,9 @@ Entity.prototype.moveTo = function(dest) {
 
 Entity.prototype.render = function() {
 	// set title
+	var icon = '<b class="glyphicon glyphicon-'+(this.isAgent()?'user':'barcode')+'"></b> ';
 	this.element.querySelector('.title').innerHTML = [
+		icon,
 		this.getTitle(),
 		'<a class="pull-right" href="httpl://ents/'+this.id+'" method=DELETE>&times;</a>'
 	].join('');
