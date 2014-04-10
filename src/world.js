@@ -116,11 +116,28 @@ function mouseupHandler(e) {
 }
 
 function contextmenuHandler(e) {
-	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
-	if (!entityEl) {
-		e.preventDefault();
-		e.stopPropagation();
+	// never allow default in the world
+	e.preventDefault();
+	e.stopPropagation();
 
+	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+	if (entityEl) {
+		// "attack"
+		var agent = this.selectedEntity;
+		var target = this.getEntity(entityEl);
+		if (agent && target && local.queryLink(agent.selfLink, { rel: 'todorel.com/agent'})) {
+			// agent targetting another entity, of the right type?
+			var rel = agent.selfLink['query-rel'];
+			if (rel && local.queryLink(target.selfLink, { rel: rel })) {
+				// reload agent with this new target
+				agent.url = local.UriTemplate
+					.parse(agent.selfLink.href)
+					.expand({ target: target.selfLink.href });
+				agent.fetch();
+			}
+		}
+	} else {
+		// move selection
 		if (!this.getSelection()) { return; }
 		var worldPos = new THREE.Vector3();
 		window.cameraControls.getMouseInWorld(e, worldPos);

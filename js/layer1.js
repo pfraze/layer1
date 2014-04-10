@@ -424,11 +424,6 @@ module.exports = CameraControls;
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('time', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
-	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
-});
-
 function CfgServer(opts) {
 	local.Server.call(this, opts);
 
@@ -755,6 +750,9 @@ Entity.prototype.dispatch = function(req) {
 			// in-place
 			self.url = req.url;
 			self.lastResponse = res;
+			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
 			self.render();
 		} else {
 			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
@@ -782,7 +780,7 @@ Entity.prototype.render = function() {
 	// set title
 	this.element.querySelector('.title').innerHTML = [
 		this.getTitle(),
-		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
+		'<a class="pull-right" href="httpl://ents/'+this.id+'" method=DELETE>&times;</a>'
 	].join('');
 	this.element.querySelector('.props-menu').innerHTML = [
 		this.getPropsMenu()
@@ -820,6 +818,7 @@ Entity.prototype.render = function() {
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
 	var redirHandler = iframeMouseEventRedispatcher.bind(this);
+	var contextmenuHandler = iframeContextmenuHandler.bind(this);
 	function tryEventBinding() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument);
@@ -828,6 +827,7 @@ Entity.prototype.render = function() {
 			iframe.contentDocument.addEventListener('dblclick', redirHandler);
 			iframe.contentDocument.addEventListener('mousedown', redirHandler);
 			iframe.contentDocument.addEventListener('mouseup', redirHandler);
+			iframe.contentDocument.addEventListener('contextmenu', contextmenuHandler);
 		} catch(e) {
 			attempts++;
 			if (attempts > 100) {
@@ -870,6 +870,20 @@ function iframeRequestEventHandler(e) {
 }
 
 function iframeMouseEventRedispatcher(e) {
+	var newEvent = {};
+	for (var k in e) { newEvent[k] = e[k]; }
+	var rect = this.element.getClientRects()[0];
+
+	newEvent.clientX = rect.left + e.clientX;
+	newEvent.clientY = rect.top + e.clientY;
+	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
+}
+
+function iframeContextmenuHandler(e) {
+	// :TODO: only disrupt event if something is selected
+	e.preventDefault();
+	e.stopPropagation();
+
 	var newEvent = {};
 	for (var k in e) { newEvent[k] = e[k]; }
 	var rect = this.element.getClientRects()[0];
@@ -965,6 +979,19 @@ function setup() {
 	local.addServer('worker-bridge', new WorkerProxy());
 	local.addServer('config', configServer);
 	local.addServer('ents', new EntityServer());
+
+	// :DEBUG:
+	local.addServer('time', function(req, res) {
+		res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
+		var type = local.preferredType(req, ['text/html', 'text/plain', 'application/json']);
+		if (!type || type == 'text/html') {
+			res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
+		} else if (type == 'text/plain') {
+			res.writeHead(200, 'OK', {'Content-Type': 'text/plain'}).end((new Date()).toLocaleString());
+		} else if (type == 'application/json') {
+			res.writeHead(200, 'OK', {'Content-Type': 'application/json'}).end({ time: (new Date()).toLocaleString() });
+		}
+	});
 
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
@@ -1322,11 +1349,28 @@ function mouseupHandler(e) {
 }
 
 function contextmenuHandler(e) {
-	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
-	if (!entityEl) {
-		e.preventDefault();
-		e.stopPropagation();
+	// never allow default in the world
+	e.preventDefault();
+	e.stopPropagation();
 
+	var entityEl = local.util.findParentNode.byClass(e.target, 'ent');
+	if (entityEl) {
+		// "attack"
+		var agent = this.selectedEntity;
+		var target = this.getEntity(entityEl);
+		if (agent && target && local.queryLink(agent.selfLink, { rel: 'todorel.com/agent'})) {
+			// agent targetting another entity, of the right type?
+			var rel = agent.selfLink['query-rel'];
+			if (rel && local.queryLink(target.selfLink, { rel: rel })) {
+				// reload agent with this new target
+				agent.url = local.UriTemplate
+					.parse(agent.selfLink.href)
+					.expand({ target: target.selfLink.href });
+				agent.fetch();
+			}
+		}
+	} else {
+		// move selection
 		if (!this.getSelection()) { return; }
 		var worldPos = new THREE.Vector3();
 		window.cameraControls.getMouseInWorld(e, worldPos);

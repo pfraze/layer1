@@ -6,11 +6,13 @@ var mimes = {
 };
 
 function main(req, res) {
-	res.setHeader('link', [{ href: '/{?target}', rel: 'self todorel.com/agent', title: 'Mimepipe', 'query-rel': 'service' }]);
+	var type = req.query.type;
+	if (!type || !mimes[type]) { req.query.type = type = 'json'; }
+
+	res.setHeader('link', [{ href: '/?type='+type+'{&target}', rel: 'self todorel.com/agent', title: 'Mimepipe', 'query-rel': 'service' }]);
 	res.writeHead(200, 'OK', {'Content-Type': 'text/html'});
+
 	if (req.query.target) {
-		var type = req.query.type;
-		if (!type || !mimes[type]) { req.query.type = type = 'json'; }
 		local.GET({ url: 'local://host.page/'+req.query.target, Accept: mimes[type]+', */*;q=0.8' })
 			.always(function(res2) {
 				render(req, res, res2);
@@ -30,11 +32,14 @@ function render(req, res, res2) {
 
 	// menu
 	var type = req.query.type;
-	var tar = encodeURIComponent(req.query.target);
+	var tar = '';
+	if (req.query.target) {
+		tar = 'target='+encodeURIComponent(req.query.target)+'&';
+	}
 	html += '<style>.btn { margin-right: 2px; }</style>';
 	html += '<p>';
-	html += '<a href="/?target='+tar+'&type=json" class="btn btn-default'+((type=='json')?' active':'')+'">Get JSON</a>';
-	html += '<a href="/?target='+tar+'&type=plaintext" class="btn btn-default'+((type=='plaintext')?' active':'')+'">Get Text</a>';
+	html += '<a href="/?'+tar+'type=json" class="btn btn-default'+((type=='json')?' active':'')+'">Get JSON</a>';
+	html += '<a href="/?'+tar+'type=plaintext" class="btn btn-default'+((type=='plaintext')?' active':'')+'">Get Text</a>';
 	html += '</p>';
 
 	// target info
@@ -93,7 +98,6 @@ function esc(str) {
 function newlines(str) {
 	// make sure there's a newline once every 60 chars at most
 	return str.replace(/([^\n]{0,60})/g, function(a, b) {
-		console.log(b);
 		if (b.length == 60) { return b+'\n'; }
 		return b;
 	});

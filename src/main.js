@@ -40,6 +40,19 @@ function setup() {
 	local.addServer('config', configServer);
 	local.addServer('ents', new EntityServer());
 
+	// :DEBUG:
+	local.addServer('time', function(req, res) {
+		res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
+		var type = local.preferredType(req, ['text/html', 'text/plain', 'application/json']);
+		if (!type || type == 'text/html') {
+			res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
+		} else if (type == 'text/plain') {
+			res.writeHead(200, 'OK', {'Content-Type': 'text/plain'}).end((new Date()).toLocaleString());
+		} else if (type == 'application/json') {
+			res.writeHead(200, 'OK', {'Content-Type': 'application/json'}).end({ time: (new Date()).toLocaleString() });
+		}
+	});
+
 	// setup camera
 	window.camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 1, 10000);
 	camera.position.z = 1500;

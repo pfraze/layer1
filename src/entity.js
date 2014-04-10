@@ -127,6 +127,9 @@ Entity.prototype.dispatch = function(req) {
 			// in-place
 			self.url = req.url;
 			self.lastResponse = res;
+			self.links = res.parsedHeaders.link;
+			self.selfLink = local.queryLinks(res, {rel:'self'})[0];
+			if (self.selfLink) { prepLink(self.selfLink); }
 			self.render();
 		} else {
 			if (res.status == 307 && !res.header('Location')) { // temp redirect to null?
@@ -154,7 +157,7 @@ Entity.prototype.render = function() {
 	// set title
 	this.element.querySelector('.title').innerHTML = [
 		this.getTitle(),
-		'<a class="pull-right" href="httpl://agents/'+this.id+'" method=DELETE>&times;</a>'
+		'<a class="pull-right" href="httpl://ents/'+this.id+'" method=DELETE>&times;</a>'
 	].join('');
 	this.element.querySelector('.props-menu').innerHTML = [
 		this.getPropsMenu()
@@ -192,6 +195,7 @@ Entity.prototype.render = function() {
 	var attempts = 0;
 	var reqHandler = iframeRequestEventHandler.bind(this);
 	var redirHandler = iframeMouseEventRedispatcher.bind(this);
+	var contextmenuHandler = iframeContextmenuHandler.bind(this);
 	function tryEventBinding() {
 		try {
 			local.bindRequestEvents(iframe.contentDocument);
@@ -200,6 +204,7 @@ Entity.prototype.render = function() {
 			iframe.contentDocument.addEventListener('dblclick', redirHandler);
 			iframe.contentDocument.addEventListener('mousedown', redirHandler);
 			iframe.contentDocument.addEventListener('mouseup', redirHandler);
+			iframe.contentDocument.addEventListener('contextmenu', contextmenuHandler);
 		} catch(e) {
 			attempts++;
 			if (attempts > 100) {
@@ -242,6 +247,20 @@ function iframeRequestEventHandler(e) {
 }
 
 function iframeMouseEventRedispatcher(e) {
+	var newEvent = {};
+	for (var k in e) { newEvent[k] = e[k]; }
+	var rect = this.element.getClientRects()[0];
+
+	newEvent.clientX = rect.left + e.clientX;
+	newEvent.clientY = rect.top + e.clientY;
+	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
+}
+
+function iframeContextmenuHandler(e) {
+	// :TODO: only disrupt event if something is selected
+	e.preventDefault();
+	e.stopPropagation();
+
 	var newEvent = {};
 	for (var k in e) { newEvent[k] = e[k]; }
 	var rect = this.element.getClientRects()[0];

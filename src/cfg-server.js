@@ -1,11 +1,6 @@
 var util = require('./util');
 var esc = util.escapeHTML;
 
-local.addServer('time', function(req, res) {
-	res.setHeader('link', [{ href: '/', rel: 'self service', title: 'Time' }]);
-	res.writeHead(200, 'OK', {'Content-Type': 'text/html'}).end('<div style="margin:5px"><b class="glyphicon glyphicon-time"></b> '+(new Date()).toLocaleString()+'</div>');
-});
-
 function CfgServer(opts) {
 	local.Server.call(this, opts);
 
