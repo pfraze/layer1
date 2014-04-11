@@ -34,8 +34,11 @@ World.prototype.setup = function(scene, configServer) {
 	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	var cfgagent = this.spawn({ url: 'local://config' });
+	cfgagent.position.x -= 150;
+	cfgagent.position.y += 100;
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://dev.grimwire.com(layer1/pfraze/mimepipe.js)/'} });
 	cfgagent.dispatch({ method: 'POST', body: {url:'local://time/'} });
+	this.select(cfgagent);
 };
 
 World.prototype.getEntity = function(idOrEl) {
@@ -172,6 +175,7 @@ function contextmenuHandler(e) {
 		if (!this.getSelection()) { return; }
 		var worldPos = new THREE.Vector3();
 		window.cameraControls.getMouseInWorld(e, worldPos);
+		this.getSelection().undockSelf();
 		this.getSelection().moveTo(worldPos);
 	}
 }

@@ -199,6 +199,12 @@ Entity.prototype.undock = function(ent) {
 	this.dockedEntities = this.dockedEntities.filter(function(e) { return e !== ent; });
 };
 
+Entity.prototype.undockSelf = function() {
+	if (this.parentEntity) {
+		this.parentEntity.undock(this);
+	}
+};
+
 Entity.prototype.render = function() {
 	// set title
 	var icon = '<b class="glyphicon glyphicon-'+(this.isAgent()?'user':'barcode')+'"></b> ';
@@ -322,7 +328,7 @@ Entity.prototype.setSelected = function(v) {
 	this.isSelected = v;
 	if (v) {
 		this.element.classList.add('selected');
-		if (this.parentEntity) { this.parentEntity.element.classList.add('selected-parent'); }
+		if (this.isAgent() && this.parentEntity) { this.parentEntity.element.classList.add('selected-parent'); }
 	} else {
 		this.element.classList.remove('selected');
 		if (this.parentEntity) { this.parentEntity.element.classList.remove('selected-parent'); }
