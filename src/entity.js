@@ -21,10 +21,11 @@ function Entity(opts) {
 	this.isBroken = false;
 	this.links = [];
 	this.selfLink = null;
+	this.dockedEntities = [];
 	if (this.parentEntity) {
 		this.position.copy(this.parentEntity.position);
 		this.position.x += 500;
-		this.moveTo(this.parentEntity);
+		this.dockTo(this.parentEntity);
 	}
 
 	// visual
@@ -157,9 +158,14 @@ Entity.prototype.moveTo = function(dest) {
 		var rect = destEnt.element.getClientRects()[0];
 		var vec = new THREE.Vector3();
 		cameraControls.getSizeInWorld(rect.width, rect.height, vec);
-		console.log(rect.width, vec.x);
 		dest.x += vec.x + 50;
 	}
+
+	var delta = new THREE.Vector3(
+		dest.x - this.position.x,
+		dest.y - this.position.y,
+		0
+	);
 
 	var self = this;
 	new TWEEN.Tween({ x: this.position.x, y: this.position.y } )
@@ -167,6 +173,30 @@ Entity.prototype.moveTo = function(dest) {
 		.easing(TWEEN.Easing.Quadratic.InOut)
 		.onUpdate(function () { self.position.set(this.x, this.y, 0); })
 		.start();
+
+	this.dockedEntities.forEach(function(ent) {
+		ent.moveTo(delta.clone().add(ent.position));
+	});
+};
+
+Entity.prototype.dockTo = function(ent) {
+	var wasSelected = this.isSelected;
+	if (wasSelected) { this.setSelected(false); }
+
+	if (this.parentEntity) { this.parentEntity.undock(this); }
+	this.parentEntity = ent;
+	if (this.parentEntity) { this.parentEntity.dock(this); }
+
+	if (wasSelected) { this.setSelected(true); }
+	this.moveTo(ent);
+};
+
+Entity.prototype.dock = function(ent) {
+	this.dockedEntities.push(ent);
+};
+
+Entity.prototype.undock = function(ent) {
+	this.dockedEntities = this.dockedEntities.filter(function(e) { return e !== ent; });
 };
 
 Entity.prototype.render = function() {
@@ -292,8 +322,10 @@ Entity.prototype.setSelected = function(v) {
 	this.isSelected = v;
 	if (v) {
 		this.element.classList.add('selected');
+		if (this.parentEntity) { this.parentEntity.element.classList.add('selected-parent'); }
 	} else {
 		this.element.classList.remove('selected');
+		if (this.parentEntity) { this.parentEntity.element.classList.remove('selected-parent'); }
 	}
 };
 

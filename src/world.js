@@ -159,7 +159,7 @@ function contextmenuHandler(e) {
 			var rel = agent.selfLink['query-rel'];
 			if (rel && local.queryLink(target.selfLink, { rel: rel })) {
 				// move agent to target
-				agent.moveTo(target);
+				agent.dockTo(target);
 				// reload agent with this new target
 				agent.url = local.UriTemplate
 					.parse(agent.selfLink.href)
