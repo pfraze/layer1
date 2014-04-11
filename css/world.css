@@ -1,9 +1,10 @@
 body { margin: 0; font-family: consolas;}
 #grid-bg { background: url(../img/wallpaper1.jpg); background-position-x: 50%; }
 
-.ent { background: white; }
+.ent { background: white; max-width: 300px; max-height: 200px; overflow: hidden; }
 .ent:not(.resolved) { border: 3px dashed green; }
 .ent.broken { border: 3px dashed red; }
+.ent.selected { overflow: visible; }
 .ent.selected, .ent.attackable { z-index: 1; }
 .ent.attackable { cursor: crosshair; }
 

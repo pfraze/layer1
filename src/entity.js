@@ -46,6 +46,7 @@ Entity.prototype.setup = function() {
 		this.links = this.lastResponse.parsedHeaders.link;
 		this.selfLink = local.queryLinks(this.links, {rel:'self'})[0];
 		if (this.selfLink) { prepLink(this.selfLink); }
+
 		this.render();
 	} else {
 		this.fetch();
@@ -180,6 +181,8 @@ Entity.prototype.moveTo = function(dest) {
 };
 
 Entity.prototype.dockTo = function(ent) {
+	if (!ent) { return; }
+
 	var wasSelected = this.isSelected;
 	if (wasSelected) { this.setSelected(false); }
 
