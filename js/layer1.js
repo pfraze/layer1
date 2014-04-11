@@ -712,12 +712,10 @@ Entity.prototype.getPropsMenu = function() {
 	if (!sl) { return ''; }
 	var html = '';
 	if (sl.rel) { html += '<p>'+sl.rel+'</p>'; }
-	html += '<p>';
 	html += world.configServer.queryAgents([sl]).map(function(l) {
 		var href = local.UriTemplate.parse(l.href).expand({ target: sl.href });
-		return '<a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a><br>';
+		return '<p><a href="'+href+'" title="'+l.title+'">'+(l.title||l.id||l.href)+'</a></p>';
 	}).join('');
-	html += '</p>';
 	return html;
 };
 

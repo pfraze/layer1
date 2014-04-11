@@ -1,18 +1,27 @@
 body { margin: 0; font-family: consolas;}
-#grid-bg { background: url(../img/background.jpg); }
+#grid-bg { background: url(../img/wallpaper1.jpg); background-position-x: 50%; }
 
-.ent { background: white; border: 3px solid black ;}
+.ent { background: white; }
 .ent:not(.resolved) { border: 3px dashed green; }
 .ent.broken { border: 3px dashed red; }
-.ent.selected { border: 3px solid #428bca; z-index: 1; }
-.ent.attackable { border: 3px solid #CE8F36; z-index: 1; cursor: crosshair; }
+.ent.selected, .ent.attackable { z-index: 1; }
+.ent.attackable { cursor: crosshair; }
 
 .ent .title { background: #ccc; padding: 5px 10px; }
-.ent .props-menu { display:none; z-index: 2; background: #fff; border: 1px solid black; position: absolute; top: -3px; margin-left: 10px; padding: 5px 10px; white-space: pre; }
+.ent.selected .title { background: #428bca; color: white; }
+.ent.attackable .title { background: #CE8F36; color: white; }
+
+.ent.selected a, .ent.attackable a { color: white; }
+
+.ent .props-menu { display:none; z-index: 2; position: absolute; white-space: pre; }
+.ent .props-menu p { background: gray; padding: 5px 10px; margin: 0; }
+.ent .props-menu p:hover { background: #428bca; color: white; }
+.ent .props-menu p:first-child { background: #428bca; color: white; }
+.ent .props-menu p a { text-decoration: none; }
 .ent.selected .props-menu { display: block; }
 
 .pull-right { float: right; }
 .hidden { display: none; }
 
-a { text-decoration: none; padding-bottom: 1px; color: #428bca; }
+a { color: #428bca; }
 a:hover { text-decoration: underline; }
