@@ -1,14 +1,17 @@
 body { margin: 0; font-family: consolas;}
-#grid-bg { background: url(../img/wallpaper1.jpg); background-position-x: 50%; }
+#grid-bg { background: url(../img/background.jpg); background-position-x: 50%; }
 
-.ent { background: white; max-width: 300px; max-height: 200px; overflow: hidden; }
+#world-gui { position: absolute; right: 0; top: 0; z-index: 100; width: 33%; height: 100%; background: #fff; border-left: 1px solid gray; }
+#world-gui > div { padding: 5px; }
+#world-gui iframe { width: 100%; }
+
 .ent:not(.resolved) { border: 3px dashed green; }
 .ent.broken { border: 3px dashed red; }
 .ent.selected { overflow: visible; }
 .ent.selected, .ent.attackable { z-index: 1; }
 .ent.attackable { cursor: crosshair; }
 
-.ent .title { background: #ccc; padding: 5px 10px; }
+.ent .title { padding: 5px 10px; }
 .ent.selected .title { background: #428bca; color: white; }
 .ent.attackable .title { background: #CE8F36; color: white; }
 .ent.selected-parent .title { background: #333; color: white; }

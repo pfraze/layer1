@@ -671,8 +671,7 @@ function Entity(opts) {
 	// visual
 	this.element.innerHTML = [
 		'<div class="title">'+this.getTitle()+'</div>',
-		'<div class="props-menu"></div>',
-		'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
+		'<div class="props-menu"></div>'
 	].join('');
 }
 Entity.prototype = Object.create(THREE.CSS3DObject.prototype);
@@ -851,121 +850,9 @@ Entity.prototype.undockSelf = function() {
 Entity.prototype.render = function() {
 	// set title
 	var icon = '<b class="glyphicon glyphicon-'+(this.isAgent()?'user':'barcode')+'"></b> ';
-	this.element.querySelector('.title').innerHTML = [
-		icon,
-		this.getTitle(),
-		'<a class="pull-right" href="httpl://ents/'+this.id+'" method=DELETE>&times;</a>'
-	].join('');
-	this.element.querySelector('.props-menu').innerHTML = [
-		this.getPropsMenu()
-	].join('');
-
-	if (!this.lastResponse) {
-		return;
-	}
-
-	// prep response body
-	var body = (this.lastResponse) ? this.lastResponse.body : '';
-	if (body && typeof body == 'object') {
-		body = JSON.stringify(body);
-	}
-	var bootstrapUrl = local.joinUri(this.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
-	var prependHTML = [
-		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
-		// ^ script-src 'self' enables the parent page to reach into the iframe
-		'<base href="'+this.getBaseUrl()+'">',
-		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
-	].join('');
-	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
-
-	// set iframe
-	var iframe = this.element.querySelector('iframe');
-	iframe.setAttribute('srcdoc', body);
-
-	// :HACK: everything below here in this function kinda blows
-
-	// Size the iframe to its content
-	iframe.addEventListener('load', sizeIframe.bind(this, iframe)); // must be set every load
-
-	// Bind request events
-	// :TODO: can this go in .load() ? appears that it *cant*
-	var attempts = 0;
-	var reqHandler = iframeRequestEventHandler.bind(this);
-	var redirHandler = iframeMouseEventRedispatcher.bind(this);
-	var contextmenuHandler = iframeContextmenuHandler.bind(this);
-	function tryEventBinding() {
-		try {
-			local.bindRequestEvents(iframe.contentDocument);
-			iframe.contentDocument.addEventListener('request', reqHandler);
-			iframe.contentDocument.addEventListener('click', redirHandler);
-			iframe.contentDocument.addEventListener('dblclick', redirHandler);
-			iframe.contentDocument.addEventListener('mousedown', redirHandler);
-			iframe.contentDocument.addEventListener('mouseup', redirHandler);
-			iframe.contentDocument.addEventListener('contextmenu', contextmenuHandler);
-		} catch(e) {
-			attempts++;
-			if (attempts > 100) {
-				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
-			} else {
-				// setTimeout(tryEventBinding, 50); // try again
-			}
-		}
-	}
-	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
-
+	this.element.querySelector('.title').innerHTML = icon + this.getTitle();
+	this.element.querySelector('.props-menu').innerHTML = this.getPropsMenu();
 };
-
-// when called, must be bound to Entity instance
-function sizeIframe(iframe) {
-	iframe.height = null; // reset so we can get a fresh measurement
-
-	var oh = iframe.contentDocument.body.offsetHeight;
-	var sh = iframe.contentDocument.body.scrollHeight;
-	var w = iframe.contentDocument.body.scrollWidth;
-	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
-	iframe.height = ((sh == 150) ? oh : sh) + 'px';
-	iframe.width = ((w < 800) ? w : 800) + 'px';
-	this.element.querySelector('.props-menu').style.left = iframe.width;
-
-	// In 100ms, do it again - it seems styles aren't always in place
-	var self = this;
-	setTimeout(function() {
-		var oh = iframe.contentDocument.body.offsetHeight;
-		var sh = iframe.contentDocument.body.scrollHeight;
-		var w = iframe.contentDocument.body.scrollWidth;
-		iframe.height = ((sh == 150) ? oh : sh) + 'px';
-		iframe.width = ((w < 800) ? w : 800) + 'px';
-		self.element.querySelector('.props-menu').style.left = iframe.width;
-	}, 100);
-}
-
-function iframeRequestEventHandler(e) {
-	this.dispatch(e.detail);
-}
-
-function iframeMouseEventRedispatcher(e) {
-	var newEvent = {};
-	for (var k in e) { newEvent[k] = e[k]; }
-	var rect = this.element.getClientRects()[0];
-
-	newEvent.clientX = rect.left + e.clientX;
-	newEvent.clientY = rect.top + e.clientY;
-	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
-}
-
-function iframeContextmenuHandler(e) {
-	// :TODO: only disrupt event if something is selected
-	e.preventDefault();
-	e.stopPropagation();
-
-	var newEvent = {};
-	for (var k in e) { newEvent[k] = e[k]; }
-	var rect = this.element.getClientRects()[0];
-
-	newEvent.clientX = rect.left + e.clientX;
-	newEvent.clientY = rect.top + e.clientY;
-	this.element.dispatchEvent(new MouseEvent(e.type, newEvent));
-}
 
 Entity.prototype.setSelected = function(v) {
 	this.isSelected = v;
@@ -1113,7 +1000,7 @@ function tick() {
 function render() {
 	renderer.render(scene, camera);
 }
-},{"./camera-controls":1,"./cfg-server":2,"./entity-server":3,"./worker-proxy":7,"./world":8}],6:[function(require,module,exports){
+},{"./camera-controls":1,"./cfg-server":2,"./entity-server":3,"./worker-proxy":7,"./world":9}],6:[function(require,module,exports){
 var lbracket_regex = /</g;
 var rbracket_regex = />/g;
 function escapeHTML(str) {
@@ -1307,11 +1194,105 @@ WorkerProxy.prototype.proxy = function(req, res, worker) {
 	req.on('end', function() { req2.end(); });
 };
 },{"./util":6}],8:[function(require,module,exports){
+var util = require('./util');
+
+function WorldGui(el, world) {
+	this.element = el;
+	this.world = world;
+	this.currentEnt = null;
+
+	// setup element
+	el.innerHTML = '<div>'
+		+'<iframe seamless="seamless" sandbox="allow-popups allow-same-origin allow-scripts"><html><head></head><body></body></html></iframe>'
+		+'</div>';
+}
+module.exports = WorldGui;
+
+WorldGui.prototype.renderEnt = function(ent) {
+	this.currentEnt = ent;
+	var iframe = this.element.querySelector('iframe');
+	if (!ent || !ent.lastResponse) {
+		iframe.setAttribute('srcdoc', '');
+		return;
+	}
+
+	var body = (ent.lastResponse) ? ent.lastResponse.body : '';
+	if (body && typeof body == 'object') {
+		body = JSON.stringify(body);
+	}
+	var bootstrapUrl = local.joinUri(ent.getBaseUrl(window.location.toString()), 'css/bootstrap.min.css');
+	var prependHTML = [
+		'<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; font-src \'self\'; style-src \'self\' \'unsafe-inline\'; img-src *; script-src \'self\';" />',
+		// ^ script-src 'self' enables the parent page to reach into the iframe
+		'<base href="'+ent.getBaseUrl()+'">',
+		'<link href="'+bootstrapUrl+'" rel="stylesheet">'
+	].join('');
+	body = prependHTML+util.stripScripts(body); // CSP stops inline or remote script execution, but we still want to stop inclusions of scripts from our domain
+
+	// set iframe
+	iframe.setAttribute('srcdoc', body);
+
+	// :HACK: everything below here in this function kinda blows
+
+	// Size the iframe to its content
+	iframe.addEventListener('load', sizeIframe.bind(this, iframe)); // must be set every load
+
+	// Bind request events
+	// :TODO: can this go in .load() ? appears that it *cant*
+	var attempts = 0;
+	var reqHandler = iframeRequestEventHandler.bind(this);
+	function tryEventBinding() {
+		try {
+			local.bindRequestEvents(iframe.contentDocument);
+			iframe.contentDocument.addEventListener('request', reqHandler);
+		} catch(e) {
+			attempts++;
+			if (attempts > 100) {
+				console.error('Failed to bind iframe events, which meant FIVE SECONDS went by the browser constructing it. Who\'s driving this clown-car?');
+			} else {
+				setTimeout(tryEventBinding, 50); // try again
+			}
+		}
+	}
+	setTimeout(tryEventBinding, 50); // wait 50 ms for the page to setup
+};
+
+
+// when called, must be bound to Entity instance
+function sizeIframe(iframe) {
+	// reset so we can get a fresh measurement
+	// iframe.width = null;
+	iframe.height = null;
+
+	var oh = iframe.contentDocument.body.offsetHeight;
+	var sh = iframe.contentDocument.body.scrollHeight;
+	var w = iframe.contentDocument.body.scrollWidth;
+	// for whatever reason, chrome gives a minimum of 150 for scrollHeight, but is accurate if below that. Whatever.
+	iframe.height = ((sh == 150) ? oh : sh) + 'px';
+	// iframe.width = ((w < 800) ? w : 800) + 'px';
+
+	// In 100ms, do it again - it seems styles aren't always in place
+	var self = this;
+	setTimeout(function() {
+		var oh = iframe.contentDocument.body.offsetHeight;
+		var sh = iframe.contentDocument.body.scrollHeight;
+		var w = iframe.contentDocument.body.scrollWidth;
+		iframe.height = ((sh == 150) ? oh : sh) + 'px';
+		// iframe.width = ((w < 800) ? w : 800) + 'px';
+	}, 100);
+}
+
+function iframeRequestEventHandler(e) {
+	this.currentEnt.dispatch(e.detail).always(this.renderEnt.bind(this, this.currentEnt));
+}
+},{"./util":6}],9:[function(require,module,exports){
 var Entity = require('./entity');
+var WorldGui = require('./world-gui');
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
+	this.gui = null;
 	this.configServer = null;
 
 	this.entities = {};
@@ -1321,6 +1302,7 @@ module.exports = World;
 
 World.prototype.setup = function(scene, configServer) {
 	this.scene = scene;
+	this.gui = new WorldGui(document.getElementById('world-gui'), this);
 	this.configServer = configServer;
 	this.leftIsDown = false;
 
@@ -1336,11 +1318,12 @@ World.prototype.setup = function(scene, configServer) {
 	this.scene.add(this.gridBg);
 
 	// setup event handlers
-	document.body.addEventListener('click', clickHandler.bind(this));
-	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
-	document.body.addEventListener('mousedown', mousedownHandler.bind(this));
-	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
-	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
+	var worldDiv = document.getElementById('world-div');
+	worldDiv.addEventListener('click', clickHandler.bind(this));
+	worldDiv.addEventListener('dblclick', dblclickHandler.bind(this));
+	worldDiv.addEventListener('mousedown', mousedownHandler.bind(this));
+	worldDiv.addEventListener('mouseup', mouseupHandler.bind(this));
+	worldDiv.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	var cfgagent = this.spawn({ url: 'local://config' });
 	cfgagent.position.x -= 150;
@@ -1405,6 +1388,7 @@ World.prototype.select = function(entity) {
 
 	// set new selection
 	this.selectedEntity = entity;
+	this.gui.renderEnt(entity);
 	if (entity) {
 		entity.setSelected(true);
 
@@ -1488,5 +1472,5 @@ function contextmenuHandler(e) {
 		this.getSelection().moveTo(worldPos);
 	}
 }
-},{"./entity":4}]},{},[5])
+},{"./entity":4,"./world-gui":8}]},{},[5])
 ;

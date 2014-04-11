@@ -26,7 +26,6 @@ function render(req, res, res2) {
 	var html = '';
 	html += '<style>';
 	html +=   '#main > :last-child { margin-bottom:0 }';
-	html +=   'pre { word-wrap: normal; white-space: pre }';
 	html += '</style>';
 	html += '<div id=main style="padding:5px; min-width: 300px">';
 

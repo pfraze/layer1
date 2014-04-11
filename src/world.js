@@ -1,8 +1,10 @@
 var Entity = require('./entity');
+var WorldGui = require('./world-gui');
 var WORLD_SIZE = 5000;
 
 function World() {
 	this.scene = null;
+	this.gui = null;
 	this.configServer = null;
 
 	this.entities = {};
@@ -12,6 +14,7 @@ module.exports = World;
 
 World.prototype.setup = function(scene, configServer) {
 	this.scene = scene;
+	this.gui = new WorldGui(document.getElementById('world-gui'), this);
 	this.configServer = configServer;
 	this.leftIsDown = false;
 
@@ -27,11 +30,12 @@ World.prototype.setup = function(scene, configServer) {
 	this.scene.add(this.gridBg);
 
 	// setup event handlers
-	document.body.addEventListener('click', clickHandler.bind(this));
-	document.body.addEventListener('dblclick', dblclickHandler.bind(this));
-	document.body.addEventListener('mousedown', mousedownHandler.bind(this));
-	document.body.addEventListener('mouseup', mouseupHandler.bind(this));
-	document.body.addEventListener('contextmenu', contextmenuHandler.bind(this));
+	var worldDiv = document.getElementById('world-div');
+	worldDiv.addEventListener('click', clickHandler.bind(this));
+	worldDiv.addEventListener('dblclick', dblclickHandler.bind(this));
+	worldDiv.addEventListener('mousedown', mousedownHandler.bind(this));
+	worldDiv.addEventListener('mouseup', mouseupHandler.bind(this));
+	worldDiv.addEventListener('contextmenu', contextmenuHandler.bind(this));
 
 	var cfgagent = this.spawn({ url: 'local://config' });
 	cfgagent.position.x -= 150;
@@ -96,6 +100,7 @@ World.prototype.select = function(entity) {
 
 	// set new selection
 	this.selectedEntity = entity;
+	this.gui.renderEnt(entity);
 	if (entity) {
 		entity.setSelected(true);
 
