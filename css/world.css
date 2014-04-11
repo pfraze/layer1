@@ -14,9 +14,8 @@ body { margin: 0; font-family: consolas;}
 .ent .title { padding: 5px 10px; }
 .ent.selected .title { background: #428bca; color: white; }
 .ent.attackable .title { background: #CE8F36; color: white; }
-.ent.selected-parent .title { background: #333; color: white; }
 
-.ent.selected a, .ent.selected-parent a, .ent.attackable a { color: white; }
+.ent.selected a, .ent.attackable a { color: white; }
 
 .ent .props-menu { display:none; z-index: 2; position: absolute; white-space: pre; }
 .ent .props-menu p { background: gray; padding: 5px 10px; margin: 0; }

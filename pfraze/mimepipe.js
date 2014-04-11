@@ -66,7 +66,7 @@ function renderContent(req, res, res2) {
 			return '<pre>'+esc(JSON.stringify(res2.body, false, 2))+'</pre>';
 		}
 		if (type == 'plaintext') {
-			return '<pre>'+esc(newlines(res2.body))+'</pre>';
+			return '<pre>'+esc(res2.body)+'</pre>';
 		}
 	}
 
@@ -76,7 +76,7 @@ function renderContent(req, res, res2) {
 			obj[res2.header('Content-Type')||'orig'] = esc(res2.body);
 			return '<pre>'+esc(JSON.stringify(obj, false, 2))+'</pre>';
 		} else if (type == 'plaintext') {
-			return '<pre>'+esc(newlines(res2.body))+'</pre>';
+			return '<pre>'+esc(res2.body)+'</pre>';
 		}
 	}
 
@@ -92,12 +92,4 @@ function esc(str) {
 		return (''+str).replace(/</g, '&lt;').replace(/>/g, '&gt;');
 	}
 	return '';
-}
-
-function newlines(str) {
-	// make sure there's a newline once every 60 chars at most
-	return str.replace(/([^\n]{0,60})/g, function(a, b) {
-		if (b.length == 60) { return b+'\n'; }
-		return b;
-	});
 }

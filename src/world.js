@@ -88,9 +88,6 @@ World.prototype.select = function(entity) {
 	var attackables = document.querySelectorAll('.ent.attackable');
 	for (var i=0; i < attackables.length; i++) {
 		attackables[i].classList.remove('attackable');
-		try {
-			attackables[i].querySelector('iframe').contentDocument.body.style.cursor = null;
-		} catch(e) {}
 	}
 
 	// clear current selection
@@ -111,9 +108,6 @@ World.prototype.select = function(entity) {
 				var target = this.entities[id];
 				if (target.selfLink && local.queryLink(target.selfLink, query)) {
 					target.element.classList.add('attackable');
-					try {
-						target.element.querySelector('iframe').contentDocument.body.style.cursor = 'crosshair';
-					} catch(e) {}
 				}
 			}
 		}
@@ -167,12 +161,13 @@ function contextmenuHandler(e) {
 			var rel = agent.selfLink['query-rel'];
 			if (rel && local.queryLink(target.selfLink, { rel: rel })) {
 				// move agent to target
-				agent.dockTo(target);
+				agent.moveTo(target);
 				// reload agent with this new target
 				agent.url = local.UriTemplate
 					.parse(agent.selfLink.href)
 					.expand({ target: target.selfLink.href });
-				agent.fetch();
+				var redrawGui = this.gui.renderEnt.bind(this.gui, agent);
+				agent.fetch().always(redrawGui);
 			}
 		}
 	} else {
@@ -180,7 +175,6 @@ function contextmenuHandler(e) {
 		if (!this.getSelection()) { return; }
 		var worldPos = new THREE.Vector3();
 		window.cameraControls.getMouseInWorld(e, worldPos);
-		this.getSelection().undockSelf();
 		this.getSelection().moveTo(worldPos);
 	}
 }

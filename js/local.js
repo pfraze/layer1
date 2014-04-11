@@ -12,6 +12,7 @@ var whitelist = [ // a list of global objects which are allowed in the worker
 ];
 var blacklist = [ // a list of global objects which are not allowed in the worker, and which dont enumerate on `self` for some reason
 	'XMLHttpRequest', 'WebSocket', 'EventSource',
+    'FileReaderSync',
 	'Worker'
 ];
 var whitelistAPIs_src = [ // nullifies all toplevel variables except those listed above in `whitelist`
@@ -366,6 +367,24 @@ function any(ps) {
 	});
 }
 
+// takes a function and executes it in a Promise context
+function lift(fn) {
+	var newValue;
+	try { newValue = fn(); }
+	catch (e) {
+		if (localConfig.logAllExceptions || e instanceof Error) {
+			if (console.error)
+				console.error(e, e.stack);
+			else console.log("Promise exception thrown", e, e.stack);
+		}
+		return promise().reject(e);
+	}
+
+	if (isPromiselike(newValue))
+		return newValue;
+	return promise(newValue);
+}
+
 // promise creator
 // - behaves like a guard, ensuring `v` is a promise
 // - if multiple arguments are given, will provide a promise that encompasses all of them
@@ -391,6 +410,7 @@ module.exports = {
 promise.bundle = bundle;
 promise.all = all;
 promise.any = any;
+promise.lift = lift;
 },{"./config.js":1,"./util":9}],5:[function(require,module,exports){
 // Standard DOM Events
 // ===================
@@ -501,6 +521,7 @@ var Relay = require('./web/relay.js');
 // - `config.shared`: boolean, should the workerserver be shared?
 // - `config.namespace`: optional string, what should the shared worker be named?
 //   - defaults to `config.src` if undefined
+// - `config.onerror`: optional function, set to the worker's onerror callback
 // - `serverFn`: optional function, a response generator for requests from the worker
 function spawnWorkerServer(src, config, serverFn) {
 	if (typeof config == 'function') { serverFn = config; config = null; }
@@ -816,7 +837,8 @@ function extractRequestPayload(targetElem, form, opts) {
 		if (elem.tagName === 'BUTTON') {
 			if (isSubmittingElem) {
 				// don't pull from buttons unless recently clicked
-				data[elem.name] = elem.value;
+				// but, when we do, make sure it's the definitive value (it takes precedence in name collisions)
+				Object.defineProperty(data, elem.name, { configurable: true, enumerable: true, writable: false, value: elem.value });
 			}
 		} else if (elem.tagName === 'INPUT') {
 			switch (elem.type.toLowerCase()) {
@@ -824,7 +846,8 @@ function extractRequestPayload(targetElem, form, opts) {
 				case 'submit':
 					if (isSubmittingElem) {
 						// don't pull from buttons unless recently clicked
-						data[elem.name] = elem.value;
+						// but, when we do, make sure it's the definitive value (it takes precedence in name collisions)
+						Object.defineProperty(data, elem.name, { configurable: true, enumerable: true, writable: false, value: elem.value });
 					}
 					break;
 				case 'checkbox':
@@ -3771,7 +3794,13 @@ function Request(options) {
 		writable: false
 	});
 	(function buffer(self) {
-		self.on('data', function(data) { self.body += data; });
+		self.on('data', function(data) {
+			if (typeof data == 'string') {
+				self.body += data;
+			} else {
+				self.body = data; // Assume it is an array buffer or some such
+			}
+		});
 		self.on('end', function() {
 			if (self.headers['content-type'])
 				self.body = contentTypes.deserialize(self.headers['content-type'], self.body);
@@ -3832,7 +3861,7 @@ Request.prototype.deserializeHeaders = function() {
 Request.prototype.write = function(data) {
 	if (!this.isConnOpen)
 		return this;
-	if (typeof data != 'string')
+	if (typeof data != 'string' && !(data instanceof ArrayBuffer))
 		data = contentTypes.serialize(this.headers['content-type'], data);
 	this.emit('data', data);
 	return this;
@@ -4040,7 +4069,7 @@ Response.prototype.writeHead = function(status, reason, headers) {
 Response.prototype.write = function(data) {
 	if (!this.isConnOpen)
 		return this;
-	if (typeof data != 'string') {
+	if (typeof data != 'string' && !(data instanceof ArrayBuffer)) {
 		data = contentTypes.serialize(this.headers['content-type'], data);
 	}
 	this.emit('data', data);
@@ -4604,13 +4633,9 @@ schemes.register(['http', 'https'], function(request, response) {
 	if (request.query) {
 		var q = contentTypes.serialize('application/x-www-form-urlencoded', request.query);
 		if (q) {
-			if (urld.query) {
-				urld.query    += '&' + q;
-				urld.relative += '&' + q;
-			} else {
-				urld.query     =  q;
-				urld.relative += '?' + q;
-			}
+			if (urld.query) { urld.query += '&' + q; }
+			else            { urld.query = q; }
+			urld.relative = urld.path + '?' + urld.query + ((urld.anchor) ? '#'+urld.anchor : '');
 		}
 	}
 
@@ -4635,7 +4660,13 @@ schemes.register(['http', 'https'], function(request, response) {
 
 	// buffer the body, send on end
 	var body = '';
-	request.on('data', function(data) { body += data; });
+	request.on('data', function(data) {
+		if (typeof data == 'string') {
+			body += data;
+		} else {
+			body = data; // Assume it is an array buffer or some such
+		}
+	});
 	request.on('end', function() { xhrRequest.send(body); });
 
 	// abort on request close
